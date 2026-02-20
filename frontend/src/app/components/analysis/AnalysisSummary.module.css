@@ -1,0 +1,53 @@
+.container {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.title { font-size: 1rem; font-weight: 600; margin-bottom: 16px; }
+
+.total {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  background-color: #f1f5f9;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.totalValue { font-size: 1.25rem; font-weight: 700; color: var(--primary-color); }
+
+.breakdown { display: flex; flex-direction: column; gap: 8px; }
+
+.item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: #fafafa;
+  border-radius: 6px;
+}
+
+.itemLabel { display: flex; align-items: center; gap: 10px; }
+
+.icon {
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  color: white;
+  font-weight: bold;
+}
+
+.itemValue { font-weight: 600; }
+
+.downloadButton {
+  width: 100%;
+  margin-top: 16px;
+  padding: 10px;
+  background-color: #1e293b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.downloadButton:hover { background-color: #334155; }

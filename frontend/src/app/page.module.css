@@ -1,0 +1,39 @@
+.container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.mainContent {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.mapContainer {
+  flex: 1;
+  position: relative;
+  background: #e5e7eb;
+}
+
+.analyzeButton {
+  width: 100%;
+  padding: 12px 16px;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 16px;
+}
+
+.analyzeButton:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
+
+.analyzeButton:disabled {
+  background-color: #94a3b8;
+  cursor: not-allowed;
+}

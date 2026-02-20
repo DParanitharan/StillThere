@@ -1,0 +1,31 @@
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  height: 60px;
+  background-color: #1e293b;
+  color: white;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon { font-size: 1.5rem; }
+.title { font-size: 1.25rem; font-weight: 600; }
+
+.navLinks {
+  display: flex;
+  list-style: none;
+  gap: 24px;
+}
+
+.navLink {
+  color: #cbd5e1;
+  font-size: 0.95rem;
+}
+
+.navLink:hover { color: white; }

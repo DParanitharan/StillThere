@@ -1,0 +1,8 @@
+.sidebar {
+  width: 320px;
+  background-color: var(--card-bg);
+  border-right: 1px solid var(--border-color);
+  overflow-y: auto;
+}
+
+.content { padding: 20px; }
