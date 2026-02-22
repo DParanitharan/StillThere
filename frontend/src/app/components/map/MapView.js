@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import styles from './MapView.module.css';
-// TODO: SCRUM-29 - Setup Map Library
 
 export default function MapView({ geoData, analysisResult }) {
   const [MapComponents, setMapComponents] = useState(null);
 
   useEffect(() => {
+    if (!geoData) return; // Don't load map if no data
+
     const loadMap = async () => {
       const L = await import('leaflet');
       const { MapContainer, TileLayer, GeoJSON } = await import('react-leaflet');
@@ -20,36 +21,107 @@ export default function MapView({ geoData, analysisResult }) {
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
       });
       
-      setMapComponents({ MapContainer, TileLayer, GeoJSON });
+      setMapComponents({ MapContainer, TileLayer, GeoJSON, L });
     };
     loadMap();
-  }, []);
+  }, [geoData]);
 
   const getFeatureStyle = (feature) => {
     const colors = {
-      added: '#16a34a', removed: '#dc2626', modified: '#eab308',
-      review: '#0891b2', unchanged: '#6b7280',
+      added: '#16a34a',
+      removed: '#dc2626',
+      modified: '#eab308',
+      review: '#0891b2',
+      unchanged: '#6b7280',
     };
     return {
       fillColor: colors[feature?.properties?.status] || '#2563eb',
-      weight: 2, opacity: 1, color: '#1e293b', fillOpacity: 0.6,
+      weight: 2,
+      opacity: 1,
+      color: '#1e293b',
+      fillOpacity: 0.6,
     };
   };
 
+  const getCenter = (data) => {
+    if (!data || !data.features || data.features.length === 0) {
+      return [1.3521, 103.8198]; // Default: Singapore
+    }
+
+    let minLat = Infinity, maxLat = -Infinity;
+    let minLng = Infinity, maxLng = -Infinity;
+
+    data.features.forEach((feature) => {
+      const coords = feature.geometry.coordinates;
+      
+      const processCoords = (coordArray) => {
+        if (typeof coordArray[0] === 'number') {
+          // [lng, lat]
+          minLng = Math.min(minLng, coordArray[0]);
+          maxLng = Math.max(maxLng, coordArray[0]);
+          minLat = Math.min(minLat, coordArray[1]);
+          maxLat = Math.max(maxLat, coordArray[1]);
+        } else {
+          coordArray.forEach(processCoords);
+        }
+      };
+
+      processCoords(coords);
+    });
+
+    return [(minLat + maxLat) / 2, (minLng + maxLng) / 2];
+  };
+
+  // No data uploaded - show placeholder
+  if (!geoData) {
+    return (
+      <div className={styles.placeholder}>
+        <div className={styles.placeholderContent}>
+          <span className={styles.placeholderIcon}>🗺️</span>
+          <h2>No Map Data</h2>
+          <p>Upload a shapefile to visualise building footprints</p>
+          <div className={styles.instructions}>
+            <div className={styles.step}>
+              <span className={styles.stepNumber}>1</span>
+              <span>Upload a ZIP file containing your shapefile</span>
+            </div>
+            <div className={styles.step}>
+              <span className={styles.stepNumber}>2</span>
+              <span>View polygons rendered on the map</span>
+            </div>
+            <div className={styles.step}>
+              <span className={styles.stepNumber}>3</span>
+              <span>Run analysis to detect changes</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Data exists but map is still loading
   if (!MapComponents) {
-    return <div className={styles.placeholder}><p>Loading map...</p></div>;
+    return (
+      <div className={styles.placeholder}>
+        <div className={styles.loadingContent}>
+          <div className={styles.spinner}></div>
+          <p>Loading map...</p>
+        </div>
+      </div>
+    );
   }
 
   const { MapContainer, TileLayer, GeoJSON } = MapComponents;
+  const center = getCenter(geoData);
 
   return (
     <div className={styles.mapWrapper}>
-      <MapContainer center={[37.0902, 140.8877]} zoom={13} className={styles.map}>
+      <MapContainer center={center} zoom={14} className={styles.map}>
         <TileLayer
           attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        {geoData && <GeoJSON data={geoData} style={getFeatureStyle} />}
+        <GeoJSON data={geoData} style={getFeatureStyle} />
       </MapContainer>
       
       <div className={styles.legend}>
@@ -66,6 +138,10 @@ export default function MapView({ geoData, analysisResult }) {
             {label}
           </div>
         ))}
+      </div>
+
+      <div className={styles.featureCount}>
+        {geoData.features?.length || 0} features loaded
       </div>
     </div>
   );
