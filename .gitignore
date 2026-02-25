@@ -70,3 +70,17 @@ htmlcov/
 
 # Jupyter
 .ipynb_checkpoints/
+backend/.env
+
+# Local env files (do not commit secrets)
+backend/.env
+.env
+
+# Node / Python typical ignores (optional, harmless)
+node_modules/
+__pycache__/
+*.pyc
+
+backend/.env
+.DS_Store
+.Rhistory
