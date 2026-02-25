@@ -1,1 +1,1 @@
-from django.shortcuts import render
+"""Geo app views."""
