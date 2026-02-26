@@ -4,8 +4,10 @@ import logging
 import os
 import tempfile
 import uuid
+import zipfile
 
 import geopandas as gpd
+from pathlib import Path
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.response import Response
@@ -44,9 +46,22 @@ def _create_upload_session_from_zip(uploaded_file) -> UploadSession:
         tmp_path = tmp.name
 
     try:
-        gdf = gpd.read_file(f"zip://{tmp_path}")
+        # Find the .shp file inside the zip 
+        with zipfile.ZipFile(tmp_path) as z:
+            shp_files = [f for f in z.namelist() if f.endswith('.shp')]
+            if not shp_files:
+                raise UploadProcessingError("No .shp file found in zip")
+            shp_path = shp_files[0]
+
+        tmp_path_str = Path(tmp_path).as_posix()
+        gdf = gpd.read_file(f"zip://{tmp_path_str}!{shp_path}")
         gdf = gdf[gdf.geometry.notnull()].copy()
+
+        if gdf.crs and gdf.crs.to_epsg() != 4326:
+            gdf = gdf.to_crs(epsg=4326)
+            
         session.crs = str(gdf.crs) if gdf.crs else ""
+    
         session.building_count = int(len(gdf))
         session.footprints_geojson = gdf.__geo_interface__
         session.save(update_fields=["crs", "building_count", "footprints_geojson"])
