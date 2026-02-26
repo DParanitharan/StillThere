@@ -16,7 +16,7 @@ export default function Home() {
   const [address, setAddress] = useState("");
   const [searchPoint, setSearchPoint] = useState(null); // { lat, lng, label }
   const [geoLoading, setGeoLoading] = useState(false);
-  const backend = process.env.NEXT_PUBLIC_BACKEND_URL;
+
 
   const handleFileUpload = (file, data) => {
     setGeoData(data);
@@ -33,20 +33,6 @@ export default function Home() {
     }, 1000);
   };
   
-  const testBackendHealth = async () => {
-    try {
-      const res = await fetch("/api/health"); // <-- uses next.config.js rewrite
-      const text = await res.text();
-
-      console.log("HTTP status:", res.status);
-      console.log("Raw response:", text);
-
-      alert(`status=${res.status}\n${text.slice(0, 200)}`);
-    } catch (e) {
-      console.error("Fetch failed:", e);
-      alert("Request failed — see console");
-    }
-  };
 
   const handleGeocode = async () => {
     if (!address.trim()) return;
@@ -78,14 +64,6 @@ export default function Home() {
   return (
     <div className={styles.container}>
       <Navbar />
-
-      <pre style={{ padding: 12, margin: 12, background: "#f5f5f5", borderRadius: 8 }}>
-      BACKEND: {process.env.NEXT_PUBLIC_BACKEND_URL}
-      {"\n"}
-      GMAPS KEY loaded: {process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ? "YES" : "NO"}
-      </pre>
-
-
       <div className={styles.mainContent}>
         <Sidebar>
           <FileUpload onUpload={handleFileUpload} />
@@ -100,9 +78,7 @@ export default function Home() {
           )}
           {analysisResult && <AnalysisSummary results={analysisResult} />}
 
-          <button className={styles.analyzeButton} onClick={testBackendHealth}>
-            Test Backend Health
-          </button>
+        
 
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             <input
