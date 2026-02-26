@@ -3,7 +3,18 @@
 import { useEffect, useState } from 'react';
 import styles from './MapView.module.css';
 
-export default function MapView({ geoData, analysisResult }) {
+function FlyTo({ searchPoint, useMap }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!searchPoint) return;
+    map.flyTo([searchPoint.lat, searchPoint.lng], 16, { duration: 0.8 });
+  }, [searchPoint, map]);
+
+  return null;
+}
+
+export default function MapView({ geoData, analysisResult, searchPoint }) {
   const [MapComponents, setMapComponents] = useState(null);
 
   useEffect(() => {
@@ -11,7 +22,7 @@ export default function MapView({ geoData, analysisResult }) {
 
     const loadMap = async () => {
       const L = await import('leaflet');
-      const { MapContainer, TileLayer, GeoJSON } = await import('react-leaflet');
+      const { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } = await import('react-leaflet');
       await import('leaflet/dist/leaflet.css');
       
       delete L.Icon.Default.prototype._getIconUrl;
@@ -21,7 +32,7 @@ export default function MapView({ geoData, analysisResult }) {
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
       });
       
-      setMapComponents({ MapContainer, TileLayer, GeoJSON, L });
+      setMapComponents({ MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap, L });
     };
     loadMap();
   }, [geoData]);
@@ -111,7 +122,7 @@ export default function MapView({ geoData, analysisResult }) {
     );
   }
 
-  const { MapContainer, TileLayer, GeoJSON } = MapComponents;
+  const { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } = MapComponents;
   const center = getCenter(geoData);
 
   return (
@@ -122,6 +133,13 @@ export default function MapView({ geoData, analysisResult }) {
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         <GeoJSON data={geoData} style={getFeatureStyle} />
+
+        <FlyTo searchPoint={searchPoint} useMap={useMap} />
+        {searchPoint && (
+          <Marker position={[searchPoint.lat, searchPoint.lng]}>
+            <Popup>{searchPoint.label || "Selected location"}</Popup>
+          </Marker>
+        )}
       </MapContainer>
       
       <div className={styles.legend}>
