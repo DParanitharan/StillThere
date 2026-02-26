@@ -1,5 +1,7 @@
 # Backend Scaffold (Django + DRF)
 TEST BACKEND v
+## Prerequisite
+Install Geos, Gdal, Proj form OSGeo4W
 
 ## Setup
 
@@ -9,6 +11,9 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
+$env:GDAL_LIBRARY_PATH="C:\Users\user\OSGeo4W\bin\gdal312.dll"
+$env:GEOS_LIBRARY_PATH="C:\Users\user\OSGeo4W\bin\geos_c.dll"
+$env:PATH="C:\Users\user\OSGeo4W\bin;" + $env:PATH
 python manage.py migrate
 python manage.py runserver 8000
 ```
