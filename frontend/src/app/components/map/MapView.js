@@ -31,15 +31,15 @@ export default function MapView({ geoData, analysisResult }) {
       added: '#16a34a',
       removed: '#dc2626',
       modified: '#eab308',
-      review: '#0891b2',
-      unchanged: '#6b7280',
+      review: '#0000f6',
+      unchanged: '#7997d4',
     };
     return {
-      fillColor: colors[feature?.properties?.status] || '#2563eb',
-      weight: 2,
+      fillColor: colors[feature?.properties?.status] || '#7997d4',
+      weight: 0.8,
       opacity: 1,
-      color: '#1e293b',
-      fillOpacity: 0.6,
+      color: '#374761',
+      fillOpacity: 0.3,
     };
   };
 
@@ -130,8 +130,8 @@ export default function MapView({ geoData, analysisResult }) {
           { label: 'Added', color: '#16a34a' },
           { label: 'Removed', color: '#dc2626' },
           { label: 'Modified', color: '#eab308' },
-          { label: 'Review', color: '#0891b2' },
-          { label: 'Unchanged', color: '#6b7280' },
+          { label: 'Review', color: '#0000f6' },
+          { label: 'Unchanged', color: '#7997d4' },
         ].map(({ label, color }) => (
           <div key={label} className={styles.legendItem}>
             <span className={styles.legendColor} style={{ backgroundColor: color }}></span>
