@@ -10,6 +10,7 @@ from .views import (
     GetOverlayView,
     HealthView,
     UploadShapefileView,
+    GeocodeView
 )
 
 urlpatterns = [
@@ -24,4 +25,5 @@ urlpatterns = [
     ),
     path("analyze/<uuid:session_id>/", AnalyzeChangesStubView.as_view(), name="analyze"),
     path("export/<uuid:session_id>/<str:export_type>/", ExportStubView.as_view(), name="export"),
+    path("geocode/", GeocodeView.as_view(), name="geocode")
 ]

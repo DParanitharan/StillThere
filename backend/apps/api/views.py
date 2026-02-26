@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 import uuid
+import requests
 import zipfile
 
 import geopandas as gpd
@@ -217,3 +218,27 @@ class ExportStubView(APIView):
             }
         )
         return Response(serializer.data)
+
+class GeocodeView(APIView):
+    """
+    Backend-only Google API call. Frontend calls this endpoint; backend uses secret key.
+    GET /api/geocode/?address=...
+    """
+
+    def get(self, request):
+        address = request.query_params.get("address")
+        if not address:
+            return Response({"error": "Missing address"}, status=status.HTTP_400_BAD_REQUEST)
+
+        key = os.getenv("GOOGLE_EARTH_API_KEY")
+        if not key:
+            return Response({"error": "GOOGLE_EARTH_API_KEY not set"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        r = requests.get(
+            "https://maps.googleapis.com/maps/api/geocode/json",
+            params={"address": address, "key": key},
+            timeout=10,
+        )
+
+        # Pass through Google's response (you can filter fields later)
+        return Response(r.json(), status=r.status_code)
