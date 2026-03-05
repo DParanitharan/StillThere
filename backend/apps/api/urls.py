@@ -13,7 +13,7 @@ from .views import (
 )
 
 urlpatterns = [
-    path("health/", HealthView.as_view(), name="health"),
+    path("health/", HealthView.as_view(), name="health"), # .as_view() converts the class-based view into a callable view function for routing
     path("upload/", UploadShapefileView.as_view(), name="upload"),
     path("overlay/<uuid:session_id>/", GetOverlayView.as_view(), name="overlay"),
     path("analysis/<uuid:upload_id>/", AnalysisStartStubView.as_view(), name="analysis-start"),

@@ -70,3 +70,5 @@ htmlcov/
 
 # Jupyter
 .ipynb_checkpoints/
+
+.pylintrc

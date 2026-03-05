@@ -12,9 +12,14 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret")
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
-# Needed by GeoDjango when dynamic library name probing misses local versions.
-GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH", "/opt/homebrew/opt/gdal/lib/libgdal.dylib")
-GEOS_LIBRARY_PATH = os.getenv("GEOS_LIBRARY_PATH", "/opt/homebrew/opt/geos/lib/libgeos_c.dylib")
+# Only set when env vars are explicitly provided (e.g. macOS Homebrew).
+# On Linux/Windows Django/GDAL locate the libraries automatically.
+_gdal = os.getenv("GDAL_LIBRARY_PATH")
+_geos = os.getenv("GEOS_LIBRARY_PATH")
+if _gdal:
+    GDAL_LIBRARY_PATH = _gdal
+if _geos:
+    GEOS_LIBRARY_PATH = _geos
 
 INSTALLED_APPS = [
     "django.contrib.admin",

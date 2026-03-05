@@ -8,6 +8,7 @@ import uuid
 import geopandas as gpd
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -26,58 +27,68 @@ from apps.geo.models import UploadSession
 
 logger = logging.getLogger(__name__)
 
+VALID_EXPORT_TYPES = {"csv", "pdf"}
+
 
 class UploadProcessingError(Exception):
     """Raised when shapefile processing fails for expected upload-related reasons."""
 
 
+def _read_shapefile_from_zip(tmp_path):
+    """Read and validate shapefile from a ZIP path, returning a clean GeoDataFrame."""
+    gdf = gpd.read_file(f"zip://{tmp_path}")
+    gdf = gdf[gdf.geometry.notnull()].copy()
+    return gdf
+
+
 def _create_upload_session_from_zip(uploaded_file) -> UploadSession:
     """Create and persist an upload session from a zipped shapefile upload."""
-    session = UploadSession.objects.create(
-        source_zip=uploaded_file,
-        dataset_name=os.path.splitext(uploaded_file.name)[0],
-    )
-
-    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
-        for chunk in uploaded_file.chunks():
-            tmp.write(chunk)
-        tmp_path = tmp.name
+    tmp_path = None
 
     try:
-        gdf = gpd.read_file(f"zip://{tmp_path}")
-        gdf = gdf[gdf.geometry.notnull()].copy()
-        session.crs = str(gdf.crs) if gdf.crs else ""
-        session.building_count = int(len(gdf))
-        session.footprints_geojson = gdf.__geo_interface__
-        session.save(update_fields=["crs", "building_count", "footprints_geojson"])
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+            for chunk in uploaded_file.chunks():
+                tmp.write(chunk)
+            tmp_path = tmp.name
+
+        gdf = _read_shapefile_from_zip(tmp_path)
+
+        session = UploadSession.objects.create(
+            source_zip=uploaded_file,
+            dataset_name=os.path.splitext(uploaded_file.name)[0],
+            crs=str(gdf.crs) if gdf.crs else "",
+            building_count=int(len(gdf)),
+            footprints_geojson=gdf.__geo_interface__,
+        )
         return session
+
     except (OSError, RuntimeError, ValueError) as exc:
-        session.delete()
         raise UploadProcessingError(str(exc)) from exc
+
     finally:
-        try:
-            os.remove(tmp_path)
-        except OSError:
-            pass
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
 
 class HealthView(APIView):
-    """Simple health endpoint."""
+    """Simple liveness endpoint."""
 
     def get(self, request):
-        """Return API liveness status."""
+        """Return API health status."""
         serializer = HealthResponseSerializer({"status": "ok"})
         return Response(serializer.data)
 
 
 class UploadShapefileView(APIView):
-    """
-    Accept a ZIP file with shapefile parts, parse via GeoPandas,
-    store minimal metadata + GeoJSON for frontend map rendering.
-    """
+    """Accept a zipped shapefile, parse via GeoPandas, and store GeoJSON for map rendering."""
+
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        """Validate and process uploaded shapefile zip into stored GeoJSON."""
+        """Validate and process uploaded shapefile ZIP into a stored session."""
         request_serializer = UploadRequestSerializer(data=request.data)
         if not request_serializer.is_valid():
             return Response(
@@ -86,6 +97,8 @@ class UploadShapefileView(APIView):
             )
 
         uploaded_file = request_serializer.validated_data["file"]
+        warnings = request_serializer.validated_data.get("warnings", [])
+
         try:
             session = _create_upload_session_from_zip(uploaded_file)
         except UploadProcessingError as exc:
@@ -107,8 +120,8 @@ class UploadShapefileView(APIView):
                 "dataset_name": session.dataset_name,
                 "crs": session.crs,
                 "building_count": session.building_count,
-                # Frontend expects response.data.geojson
                 "geojson": session.footprints_geojson,
+                "warnings": warnings,
             }
         )
         return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -117,8 +130,10 @@ class UploadShapefileView(APIView):
 class GetOverlayView(APIView):
     """Return saved overlay GeoJSON for a session."""
 
+    permission_classes = [IsAuthenticated]
+
     def get(self, request, session_id):
-        """Fetch overlay payload by upload session id."""
+        """Fetch overlay GeoJSON by session ID."""
         session = get_object_or_404(UploadSession, id=session_id)
         serializer = OverlayResponseSerializer(
             {"session_id": session.id, "geojson": session.footprints_geojson}
@@ -127,18 +142,26 @@ class GetOverlayView(APIView):
 
 
 class AnalysisStartStubView(APIView):
-    """
-    Matches current frontend API call: POST /api/analysis/<upload_id>/
-    """
+    """Trigger change detection analysis for an uploaded session."""
+
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, upload_id):
-        """Return stub analysis start response."""
-        get_object_or_404(UploadSession, id=upload_id)
+        """Start analysis job and return a tracking ID."""
+        session = get_object_or_404(UploadSession, id=upload_id)
         analysis_id = uuid.uuid4()
+
+        # TODO: Create an Analysis model, save analysis_id + session + status="pending"
+        # analysis = Analysis.objects.create(
+        #     id=analysis_id,
+        #     session=session,
+        #     status="pending",
+        # )
+
         serializer = AnalysisStubSerializer(
             {
                 "analysis_id": analysis_id,
-                "upload_id": upload_id,
+                "upload_id": session.id,
                 "status": "not_implemented",
                 "message": "Change detection not implemented yet.",
             }
@@ -147,12 +170,17 @@ class AnalysisStartStubView(APIView):
 
 
 class AnalysisResultsStubView(APIView):
-    """
-    Matches current frontend API call: GET /api/analysis/<analysis_id>/results/
-    """
+    """Return results for a previously started analysis job."""
+
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, analysis_id):
-        """Return stub analysis results."""
+        """Fetch analysis results by analysis ID."""
+
+        # TODO: Look up Analysis model by analysis_id
+        # analysis = get_object_or_404(Analysis, id=analysis_id)
+        # return real results from analysis.results
+
         serializer = AnalysisResultsStubSerializer(
             {
                 "analysis_id": analysis_id,
@@ -171,12 +199,12 @@ class AnalysisResultsStubView(APIView):
 
 
 class AnalyzeChangesStubView(APIView):
-    """
-    Additional explicit route requested: POST /api/analyze/<session_id>/
-    """
+    """Trigger and return change detection results directly against a session."""
+
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, session_id):
-        """Return stub response for explicit analyze endpoint."""
+        """Run analysis directly on a session and return stub response."""
         session = get_object_or_404(UploadSession, id=session_id)
         serializer = AnalyzeResponseSerializer(
             {
@@ -189,10 +217,20 @@ class AnalyzeChangesStubView(APIView):
 
 
 class ExportStubView(APIView):
-    """Return stub response for export endpoint."""
+    """Generate and return an export of analysis results."""
+
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, session_id, export_type):
-        """Return requested export type in a stub payload."""
+        """Return export stub response for a given session and export format."""
+        if export_type not in VALID_EXPORT_TYPES:
+            return Response(
+                {
+                    "error": f"Invalid export type. Must be one of: {sorted(VALID_EXPORT_TYPES)}"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         session = get_object_or_404(UploadSession, id=session_id)
         serializer = ExportResponseSerializer(
             {

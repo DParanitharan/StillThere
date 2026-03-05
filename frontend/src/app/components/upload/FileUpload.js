@@ -31,9 +31,7 @@ export default function FileUpload({ onUpload }) {
       });
       onUpload(file, response.data.geojson);
     } catch (err) {
-      setError('Failed to upload. Backend may not be running.');
-      // Mock data for demo
-      onUpload(file, { type: 'FeatureCollection', features: [] });
+      setError(err?.response?.data?.error || 'Upload failed. Check that the backend is running.');
     } finally {
       setUploading(false);
     }
