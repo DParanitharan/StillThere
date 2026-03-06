@@ -84,3 +84,6 @@ __pycache__/
 backend/.env
 .DS_Store
 .Rhistory
+
+backend/tsxazu.geojson
+backend/sam_vit_h_4b8939.pth

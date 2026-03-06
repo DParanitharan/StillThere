@@ -25,7 +25,10 @@ from apps.api.serializers import (
     UploadResponseSerializer,
 )
 from apps.geo.models import UploadSession
-
+from apps.geo.utils import (
+    classify_buildings,
+    to_2d_geom,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -163,22 +166,20 @@ class AnalysisStartStubView(APIView):
 
 
 class AnalysisResultsStubView(APIView):
-    """
-    Matches current frontend API call: GET /api/analysis/<analysis_id>/results/
-    """
+    """Return results for a previously started analysis job."""
+
 
     def get(self, request, analysis_id):
-        """Return stub analysis results."""
+        """Fetch analysis results by analysis ID."""
+
         serializer = AnalysisResultsStubSerializer(
             {
                 "analysis_id": analysis_id,
                 "status": "not_implemented",
                 "summary": {
-                    "added": 0,
                     "removed": 0,
                     "modified": 0,
                     "unchanged": 0,
-                    "review": 0,
                 },
                 "features": [],
             }
@@ -187,18 +188,16 @@ class AnalysisResultsStubView(APIView):
 
 
 class AnalyzeChangesStubView(APIView):
-    """
-    Additional explicit route requested: POST /api/analyze/<session_id>/
-    """
+    """Trigger and return change detection results directly against a session."""
 
     def post(self, request, session_id):
-        """Return stub response for explicit analyze endpoint."""
+        """Run analysis directly on a session and return stub response."""
         session = get_object_or_404(UploadSession, id=session_id)
         serializer = AnalyzeResponseSerializer(
             {
                 "session_id": session.id,
                 "status": "not_implemented",
-                "message": "Change detection not implemented yet.",
+                "message": "Change detection not implemented yet. Classifies removed, modified, and unchanged only.",
             }
         )
         return Response(serializer.data)
@@ -242,3 +241,46 @@ class GeocodeView(APIView):
 
         # Pass through Google's response (you can filter fields later)
         return Response(r.json(), status=r.status_code)
+    
+class BuildingExtractionView(APIView):
+    def post(self, request):
+        import json
+        import zipfile
+
+        session_id = request.data.get('session_id')
+        output_dir = 'media/outputs/'
+        os.makedirs(output_dir, exist_ok=True)
+
+        logger.info(f"BuildingExtractionView POST called. Session: {session_id}")
+
+        session = get_object_or_404(UploadSession, id=session_id)
+        zip_path = session.source_zip.path
+
+        with zipfile.ZipFile(zip_path) as zf:
+            shp_files = [f for f in zf.namelist() if f.endswith('.shp')]
+            if not shp_files:
+                return Response({'error': 'No .shp found in zip'}, status=400)
+            shp_path = shp_files[0]
+
+        gdf = gpd.read_file(f"zip://{zip_path}!{shp_path}")
+        gdf = gdf[gdf.geometry.notnull()].copy()
+        if gdf.crs and gdf.crs.to_epsg() != 4326:
+            gdf = gdf.to_crs(epsg=4326)
+        gdf = gdf[gdf.geometry.is_valid].copy()
+
+        logger.info(f"Input shapefile has {len(gdf)} polygons")
+
+        # Classify buildings against current imagery
+        result_gdf = classify_buildings(
+            input_gdf=gdf,
+            output_dir=output_dir,
+            zoom=19,
+        )
+
+        # Clean up geometries
+        result_gdf['geometry'] = result_gdf['geometry'].apply(to_2d_geom)
+
+        feature_collection = json.loads(result_gdf.to_json())
+        logger.info(f"Returning {len(result_gdf)} classified buildings")
+        return Response(feature_collection, status=200)
+

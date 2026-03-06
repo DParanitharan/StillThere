@@ -14,44 +14,78 @@ function FlyTo({ searchPoint, useMap }) {
   return null;
 }
 
-export default function MapView({ geoData, analysisResult, searchPoint }) {
+export default function MapView({ geoData, buildingsGeoData, analysisResult, searchPoint }) {
   const [MapComponents, setMapComponents] = useState(null);
+  const [showSatellite, setShowSatellite] = useState(false);
 
   useEffect(() => {
-    if (!geoData) return; // Don't load map if no data
+    if (!geoData) return;
 
     const loadMap = async () => {
       const L = await import('leaflet');
-      const { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } = await import('react-leaflet');
+      const { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap, LayersControl } = await import('react-leaflet');
       await import('leaflet/dist/leaflet.css');
-      
+
       delete L.Icon.Default.prototype._getIconUrl;
       L.Icon.Default.mergeOptions({
         iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
         iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
       });
-      
-      setMapComponents({ MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap, L });
+
+      setMapComponents({ MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap, LayersControl, L });
     };
     loadMap();
   }, [geoData]);
 
-  const getFeatureStyle = (feature) => {
-    const colors = {
-      added: '#16a34a',
-      removed: '#dc2626',
-      modified: '#eab308',
-      review: '#0000f6',
-      unchanged: '#7997d4',
-    };
-    return {
-      fillColor: colors[feature?.properties?.status] || '#7997d4',
-      weight: 0.8,
-      opacity: 1,
-      color: '#374761',
-      fillOpacity: 0.3,
-    };
+  const getInputStyle = () => ({
+    color: '#3388ff',
+    weight: 2,
+    fillColor: '#3388ff',
+    fillOpacity: 0.15,
+  });
+
+  const getClassifiedStyle = (feature) => {
+    const status = feature?.properties?.status;
+    switch (status) {
+      case 'unchanged':
+        return { color: '#16a34a', weight: 2, fillColor: '#16a34a', fillOpacity: 0.3 };
+      case 'modified':
+        return { color: '#f59e0b', weight: 2, fillColor: '#f59e0b', fillOpacity: 0.4 };
+      case 'removed':
+        return { color: '#ef4444', weight: 2, fillColor: '#ef4444', fillOpacity: 0.4 };
+      default:
+        return { color: '#6b7280', weight: 1, fillColor: '#6b7280', fillOpacity: 0.2 };
+    }
+  };
+
+  const onEachFeature = (feature, layer) => {
+    const props = feature?.properties || {};
+    let metrics = {};
+    try {
+      metrics = props.metrics ? JSON.parse(props.metrics) : {};
+    } catch (e) {
+      metrics = {};
+    }
+
+    const statusColor = {
+      unchanged: '#16a34a',
+      modified: '#f59e0b',
+      removed: '#ef4444',
+    }[props.status] || '#6b7280';
+
+    layer.bindPopup(
+      `<div style="min-width:200px">` +
+      `<h4 style="margin:0 0 8px;color:${statusColor}">` +
+      `${(props.status || 'unknown').toUpperCase()}</h4>` +
+      `<table style="font-size:12px;width:100%">` +
+      `<tr><td><b>Building ID</b></td><td>${props.input_idx ?? '—'}</td></tr>` +
+      `<tr><td><b>IoU</b></td><td>${(props.iou ?? 0).toFixed(3)}</td></tr>` +
+      `<tr><td><b>SAM Confidence</b></td><td>${(props.confidence ?? 0).toFixed(2)}</td></tr>` +
+      `<tr><td><b>SAM Score</b></td><td>${(metrics.sam_score ?? 0).toFixed(2)}</td></tr>` +
+      `</table>` +
+      `</div>`
+    );
   };
 
   const getCenter = (data) => {
@@ -83,7 +117,6 @@ export default function MapView({ geoData, analysisResult, searchPoint }) {
     return [(minLat + maxLat) / 2, (minLng + maxLng) / 2];
   };
 
-  // No data uploaded - show placeholder
   if (!geoData) {
     return (
       <div className={styles.placeholder}>
@@ -110,7 +143,6 @@ export default function MapView({ geoData, analysisResult, searchPoint }) {
     );
   }
 
-  // Data exists but map is still loading
   if (!MapComponents) {
     return (
       <div className={styles.placeholder}>
@@ -123,16 +155,41 @@ export default function MapView({ geoData, analysisResult, searchPoint }) {
   }
 
   const { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } = MapComponents;
-  const center = getCenter(geoData);
+
+  const hasClassifiedData = buildingsGeoData?.features?.length > 0;
+  const inputKey = geoData ? `input-${geoData.features?.length}` : 'none';
+  const buildingsKey = buildingsGeoData ? `bld-${buildingsGeoData.features?.length}-${buildingsGeoData.features?.[0]?.properties?.status}` : 'none';
 
   return (
-    <div className={styles.mapWrapper}>
-      <MapContainer center={center} zoom={14} className={styles.map}>
-        <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <GeoJSON data={geoData} style={getFeatureStyle} />
+    <div style={{ height: '100%', width: '100%', position: 'relative' }}>
+      <MapContainer center={getCenter(geoData)} zoom={15} style={{ height: '100%', width: '100%' }}>
+
+        {!showSatellite && (
+          <TileLayer
+            attribution='&copy; OpenStreetMap contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+        )}
+
+        {showSatellite && (
+          <TileLayer
+            attribution="Google Satellite"
+            url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
+          />
+        )}
+
+        {geoData?.features?.length > 0 && !hasClassifiedData && (
+          <GeoJSON key={inputKey} data={geoData} style={getInputStyle} />
+        )}
+
+        {hasClassifiedData && (
+          <GeoJSON
+            key={buildingsKey}
+            data={buildingsGeoData}
+            style={getClassifiedStyle}
+            onEachFeature={onEachFeature}
+          />
+        )}
 
         <FlyTo searchPoint={searchPoint} useMap={useMap} />
         {searchPoint && (
@@ -141,15 +198,35 @@ export default function MapView({ geoData, analysisResult, searchPoint }) {
           </Marker>
         )}
       </MapContainer>
-      
+
+      {/* Satellite toggle button */}
+      <button
+        onClick={() => setShowSatellite(!showSatellite)}
+        style={{
+          position: 'absolute',
+          top: 10,
+          right: 10,
+          zIndex: 1000,
+          padding: '8px 12px',
+          backgroundColor: showSatellite ? '#1e293b' : '#fff',
+          color: showSatellite ? '#fff' : '#1e293b',
+          border: '2px solid #1e293b',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          fontSize: '13px',
+          fontWeight: 'bold',
+          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+        }}
+      >
+        {showSatellite ? '🗺️ Street' : '🛰️ Satellite'}
+      </button>
+
       <div className={styles.legend}>
         <h4>Legend</h4>
         {[
-          { label: 'Added', color: '#16a34a' },
-          { label: 'Removed', color: '#dc2626' },
-          { label: 'Modified', color: '#eab308' },
-          { label: 'Review', color: '#0000f6' },
-          { label: 'Unchanged', color: '#7997d4' },
+          { label: 'Unchanged', color: '#16a34a' },
+          { label: 'Modified', color: '#f59e0b' },
+          { label: 'Removed', color: '#ef4444' },
         ].map(({ label, color }) => (
           <div key={label} className={styles.legendItem}>
             <span className={styles.legendColor} style={{ backgroundColor: color }}></span>
@@ -159,7 +236,7 @@ export default function MapView({ geoData, analysisResult, searchPoint }) {
       </div>
 
       <div className={styles.featureCount}>
-        {geoData.features?.length || 0} features loaded
+        {(hasClassifiedData ? buildingsGeoData.features.length : geoData.features?.length) || 0} features loaded
       </div>
     </div>
   );

@@ -1,9 +1,8 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import api from '@/services/api';
-import styles from './FileUpload.module.css';
+import { uploadShapefile } from '@/services/api';
 
 export default function FileUpload({ onUpload }) {
   const [uploading, setUploading] = useState(false);
@@ -11,29 +10,22 @@ export default function FileUpload({ onUpload }) {
   const [fileName, setFileName] = useState(null);
 
   const onDrop = useCallback(async (acceptedFiles) => {
+    if (acceptedFiles.length === 0) return;
+
     const file = acceptedFiles[0];
-    if (!file) return;
-
-    if (!file.name.endsWith('.zip')) {
-      setError('Please upload a ZIP file containing your shapefile.');
-      return;
-    }
-
-    setError(null);
-    setUploading(true);
     setFileName(file.name);
+    setUploading(true);
+    setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await api.post('/api/upload/', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      onUpload(file, response.data.geojson);
+      const data = await uploadShapefile(file);
+      console.log('Upload response data:', data);
+      if (onUpload) {
+        onUpload(data);
+      }
     } catch (err) {
-      setError('Failed to upload. Backend may not be running.');
-      // Mock data for demo
-      onUpload(file, { type: 'FeatureCollection', features: [] });
+      console.error('Upload failed:', err);
+      setError(err.message || 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -42,25 +34,31 @@ export default function FileUpload({ onUpload }) {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 'application/zip': ['.zip'] },
-    maxFiles: 1,
+    multiple: false,
   });
 
   return (
-    <div className={styles.container}>
-      <h3 className={styles.title}>Upload Shapefile</h3>
-      <div {...getRootProps()} className={`${styles.dropzone} ${isDragActive ? styles.active : ''}`}>
-        <input {...getInputProps()} />
-        {uploading ? <p>Uploading...</p> : (
-          <>
-            <span className={styles.uploadIcon}>📁</span>
-            <p>Drag & drop a ZIP file here</p>
-            <p className={styles.subtext}>or click to browse</p>
-          </>
-        )}
-      </div>
-      {fileName && !error && <div className={styles.fileInfo}>✓ {fileName}</div>}
-      {error && <p className={styles.error}>{error}</p>}
-      <p className={styles.hint}>Upload ZIP containing .shp, .shx, .dbf, .prj files</p>
+    <div
+      {...getRootProps()}
+      style={{
+        border: '2px dashed #ccc',
+        borderRadius: '8px',
+        padding: '20px',
+        textAlign: 'center',
+        cursor: 'pointer',
+        backgroundColor: isDragActive ? '#f0f8ff' : '#fff',
+      }}
+    >
+      <input {...getInputProps()} />
+      {uploading ? (
+        <p>Uploading...</p>
+      ) : isDragActive ? (
+        <p>Drop the zip file here...</p>
+      ) : (
+        <p>Drag & drop a shapefile (.zip) here, or click to select</p>
+      )}
+      {fileName && !uploading && <p style={{ color: '#666', marginTop: '8px' }}>✅ {fileName}</p>}
+      {error && <p style={{ color: 'red', marginTop: '8px' }}>❌ {error}</p>}
     </div>
   );
 }

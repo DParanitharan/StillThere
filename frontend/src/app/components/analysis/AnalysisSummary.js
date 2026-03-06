@@ -1,14 +1,12 @@
 import styles from './AnalysisSummary.module.css';
 
 export default function AnalysisSummary({ results }) {
-  const { added, removed, modified, unchanged, review } = results;
-  const total = added + removed + modified + unchanged + review;
+  const { removed = 0, modified = 0, unchanged = 0 } = results;
+  const total = removed + modified + unchanged;
 
   const items = [
-    { label: 'Added', value: added, color: '#16a34a', icon: '+' },
     { label: 'Removed', value: removed, color: '#dc2626', icon: '−' },
     { label: 'Modified', value: modified, color: '#eab308', icon: '~' },
-    { label: 'Review', value: review, color: '#0891b2', icon: '?' },
     { label: 'Unchanged', value: unchanged, color: '#6b7280', icon: '=' },
   ];
 

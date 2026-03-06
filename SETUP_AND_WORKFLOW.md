@@ -44,6 +44,7 @@
 │   │       ├── migrations/                - Database change history
 │   │       │   ├── 0001_initial.py        - First DB setup for geo app
 │   │       │   └── __init__.py            - Migration package marker
+            |--- debug_verify.py           - Debug Script to evaluate comparison model
 │   │       ├── models.py                  - Geo database models
 │   │       └── views.py                   - Geo views (if used)
 │   ├── manage.py                           - Command runner (`runserver`, `migrate`)
