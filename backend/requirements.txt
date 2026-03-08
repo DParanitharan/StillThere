@@ -4,8 +4,8 @@ django-cors-headers==4.4.0
 python-dotenv==1.0.1
 psycopg[binary]==3.2.1
 django-debug-toolbar==4.4.6
+
 # Geo
-geopandas==1.0.1
+geopandas
 shapely==2.0.6
 pyproj==3.6.1
-fiona==1.10.1

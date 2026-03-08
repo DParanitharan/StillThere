@@ -1,7 +1,6 @@
 """URL routes for API endpoints."""
 
 from django.urls import path
-
 from .views import (
     AnalysisResultsStubView,
     AnalysisStartStubView,

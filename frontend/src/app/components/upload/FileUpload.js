@@ -14,7 +14,7 @@ export default function FileUpload({ onUpload }) {
     const file = acceptedFiles[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.zip')) {
+    if (!file.name.toLowerCase().endsWith('.zip')) {
       setError('Please upload a ZIP file containing your shapefile.');
       return;
     }
@@ -26,20 +26,34 @@ export default function FileUpload({ onUpload }) {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      console.log('API baseURL:', api.defaults.baseURL);
+
       const response = await api.post('/api/upload/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+
       onUpload(file, response.data.geojson);
     } catch (err) {
+      console.error('Upload error:', err);
       setError(err?.response?.data?.error || 'Upload failed. Check that the backend is running.');
     } finally {
       setUploading(false);
     }
   }, [onUpload]);
 
+  const onDropRejected = useCallback((fileRejections) => {
+    console.error('Rejected files:', fileRejections);
+    setError('File rejected. Please upload a valid .zip shapefile archive.');
+  }, []);
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'application/zip': ['.zip'] },
+    onDropRejected,
+    accept: {
+      'application/zip': ['.zip'],
+      'application/x-zip-compressed': ['.zip'],
+      'application/octet-stream': ['.zip'],
+    },
     maxFiles: 1,
   });
 
