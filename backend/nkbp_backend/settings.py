@@ -1,3 +1,5 @@
+"""Django settings for backend local development."""
+
 from pathlib import Path
 import os
 from dotenv import load_dotenv
@@ -10,9 +12,15 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret")
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
+# Only set when env vars are explicitly provided (e.g. macOS Homebrew).
+# On Linux/Windows Django/GDAL locate the libraries automatically.
 # Needed by GeoDjango when dynamic library name probing misses local versions.
-GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH", "/opt/homebrew/opt/gdal/lib/libgdal.dylib")
-GEOS_LIBRARY_PATH = os.getenv("GEOS_LIBRARY_PATH", "/opt/homebrew/opt/geos/lib/libgeos_c.dylib")
+_gdal = os.getenv("GDAL_LIBRARY_PATH")
+_geos = os.getenv("GEOS_LIBRARY_PATH")
+if _gdal:
+    GDAL_LIBRARY_PATH = _gdal
+if _geos:
+    GEOS_LIBRARY_PATH = _geos
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -40,6 +48,17 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+if DEBUG:
+    INSTALLED_APPS += ["debug_toolbar"]
+    MIDDLEWARE = [
+        "debug_toolbar.middleware.DebugToolbarMiddleware",
+        *MIDDLEWARE,
+    ]
+
+    INTERNAL_IPS = [
+        "127.0.0.1",
+    ]
+
 ROOT_URLCONF = "nkbp_backend.urls"
 
 TEMPLATES = [
@@ -64,11 +83,11 @@ ASGI_APPLICATION = "nkbp_backend.asgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.contrib.gis.db.backends.postgis",
-        "NAME": os.getenv("DB_NAME", "nkbp"),
-        "USER": os.getenv("DB_USER", "postgres"),
-        "PASSWORD": os.getenv("DB_PASSWORD", "postgres"),
-        "HOST": os.getenv("DB_HOST", "localhost"),
-        "PORT": os.getenv("DB_PORT", "5432"),
+        "NAME": os.environ.get("POSTGRES_DB", "dsa_db"),
+        "USER": os.environ.get("POSTGRES_USER", "postgres"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "postgres"),
+        "HOST": os.environ.get("POSTGRES_HOST", "db"),
+        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }
 }
 
@@ -84,9 +103,13 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOWED_ORIGINS = [
+    "http://localhost",
     "http://localhost:3000",
 ]
-
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost",
+    "http://localhost:3000",
+]
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",

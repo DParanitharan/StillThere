@@ -1,3 +1,4 @@
-from django.db import models
+"""API app models.
 
-# API app models go here.
+This app currently exposes endpoints and serializers only.
+"""

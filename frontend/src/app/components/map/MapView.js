@@ -52,6 +52,7 @@ export default function MapView({ geoData, analysisResult }) {
     let minLng = Infinity, maxLng = -Infinity;
 
     data.features.forEach((feature) => {
+      if (!feature.geometry || !feature.geometry.coordinates) return;
       const coords = feature.geometry.coordinates;
       
       const processCoords = (coordArray) => {

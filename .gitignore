@@ -24,6 +24,32 @@ wheels/
 venv/
 .venv/
 ENV/
+env/# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+ENV/
 env/
 
 # Django
@@ -70,6 +96,7 @@ htmlcov/
 
 # Jupyter
 .ipynb_checkpoints/
+<<<<<<< HEAD
 backend/.env
 
 # Local env files (do not commit secrets)
@@ -84,3 +111,7 @@ __pycache__/
 backend/.env
 .DS_Store
 .Rhistory
+=======
+
+.pylintrc
+>>>>>>> main

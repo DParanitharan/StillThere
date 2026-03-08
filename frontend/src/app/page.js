@@ -7,12 +7,14 @@ import MapView from '@/app/components/map/MapView';
 import FileUpload from '@/app/components/upload/FileUpload';
 import AnalysisSummary from '@/app/components/analysis/AnalysisSummary';
 import styles from './page.module.css';
+import ChatInterface from '@/app/components/chat/ChatInterface';
 
 export default function Home() {
   // Shared state - components will use these
   const [geoData, setGeoData] = useState(null);
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const handleFileUpload = (file, data) => {
     setGeoData(data);
@@ -21,12 +23,30 @@ export default function Home() {
 
   const handleRunAnalysis = async () => {
     if (!geoData) return;
+
     setIsAnalyzing(true);
-    // TODO: Connect to backend API
-    setTimeout(() => {
-      setAnalysisResult({ added: 0, removed: 0, modified: 0, unchanged: 0, review: 0 });
+
+    try {
+      const res = await fetch(`/api/analyze/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ geoData }),
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Backend error ${res.status}: ${text}`);
+      }
+
+      const data = await res.json();
+      setAnalysisResult(data);
+
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Failed to run analysis");
+    } finally {
       setIsAnalyzing(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -49,6 +69,13 @@ export default function Home() {
         <div className={styles.mapContainer}>
           <MapView geoData={geoData} analysisResult={analysisResult} />
         </div>
+        <ChatInterface 
+          isOpen={isChatOpen} 
+          onToggle={() => setIsChatOpen(!isChatOpen)}
+          position="right"
+          geoData={geoData}
+          analysisResult={analysisResult}
+        />
       </div>
     </div>
   );

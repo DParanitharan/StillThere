@@ -1,21 +1,109 @@
+"""Serializer classes for API request/response payloads."""
+
+import os
+import zipfile
+
 from rest_framework import serializers
 
 
+class HealthResponseSerializer(serializers.Serializer):
+    """Health-check response schema."""
+
+    status = serializers.CharField()
+
+
+class UploadRequestSerializer(serializers.Serializer):
+    """Upload request schema with basic archive validation."""
+
+    file = serializers.FileField()
+
+    MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
+    REQUIRED_SHAPEFILE_EXTENSIONS = {".shp", ".shx", ".dbf"}
+    RECOMMENDED_SHAPEFILE_EXTENSIONS = {".prj"}
+
+    def validate_file(self, value):
+        """Validate uploaded file type, size, and required shapefile members."""
+        filename = (value.name or "").lower()
+        if not filename.endswith(".zip"):
+            raise serializers.ValidationError("Upload must be a .zip file.")
+
+        if value.size > self.MAX_FILE_SIZE_BYTES:
+            raise serializers.ValidationError("Upload exceeds 50MB limit.")
+
+        # Sanity check archive structure before expensive processing.
+        try:
+            with zipfile.ZipFile(value) as archive:
+                members = {
+                    os.path.splitext(os.path.basename(name))[1].lower()
+                    for name in archive.namelist()
+                    if not name.endswith("/")
+                }
+        except (zipfile.BadZipFile, OSError):
+            raise serializers.ValidationError("File is not a valid ZIP archive.")
+        finally:
+            value.seek(0)
+
+        missing_required = self.REQUIRED_SHAPEFILE_EXTENSIONS - members
+        missing_recommended = self.RECOMMENDED_SHAPEFILE_EXTENSIONS - members
+
+        if missing_required or missing_recommended:
+            # Surface warnings through to the view instead of rejecting
+            value.missing_extension_warnings = [
+                f"Missing: {', '.join(missing_required or missing_recommended)}"
+            ]
+        else:
+            value.missing_extension_warnings = []
+
+        return value
+
+
 class UploadResponseSerializer(serializers.Serializer):
+    """Upload response schema used by frontend map flow."""
+
     session_id = serializers.UUIDField()
     dataset_name = serializers.CharField()
     crs = serializers.CharField(allow_blank=True)
     building_count = serializers.IntegerField()
     geojson = serializers.JSONField(allow_null=True)
+    warnings = serializers.ListField(child=serializers.CharField(), default=list)
 
 
 class OverlayResponseSerializer(serializers.Serializer):
+    """Overlay response schema for retrieving stored GeoJSON."""
+
     session_id = serializers.UUIDField()
     geojson = serializers.JSONField(allow_null=True)
 
 
 class AnalysisStubSerializer(serializers.Serializer):
+    """Stub schema for analysis start endpoint."""
+
     analysis_id = serializers.UUIDField()
     upload_id = serializers.UUIDField()
     status = serializers.CharField()
     message = serializers.CharField()
+
+
+class AnalysisResultsStubSerializer(serializers.Serializer):
+    """Stub schema for analysis result endpoint."""
+
+    analysis_id = serializers.UUIDField()
+    status = serializers.CharField()
+    summary = serializers.JSONField()
+    features = serializers.ListField()
+
+
+class AnalyzeResponseSerializer(serializers.Serializer):
+    """Stub schema for generic analyze endpoint."""
+
+    session_id = serializers.UUIDField()
+    status = serializers.CharField()
+    message = serializers.CharField()
+
+
+class ExportResponseSerializer(serializers.Serializer):
+    """Stub schema for export endpoint."""
+
+    session_id = serializers.UUIDField()
+    export_type = serializers.CharField()
+    status = serializers.CharField()
