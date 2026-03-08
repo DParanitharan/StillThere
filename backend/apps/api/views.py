@@ -91,10 +91,15 @@ def _create_upload_session_from_zip(uploaded_file) -> UploadSession:
 
         gdf = _read_shapefile_from_zip(tmp_path)
 
+        original_crs = str(gdf.crs) if gdf.crs else ""
+
+        if gdf.crs:
+            gdf = gdf.to_crs(epsg=4326)
+
         session = UploadSession.objects.create(
             source_zip=uploaded_file,
             dataset_name=os.path.splitext(uploaded_file.name)[0],
-            crs=str(gdf.crs) if gdf.crs else "",
+            crs=original_crs,
             building_count=int(len(gdf)),
             footprints_geojson=gdf.__geo_interface__,
         )
