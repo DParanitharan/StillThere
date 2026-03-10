@@ -11,18 +11,13 @@ export default function FileUpload({ onUpload }) {
 
   const onDrop = useCallback(async (acceptedFiles) => {
     if (acceptedFiles.length === 0) return;
-
     const file = acceptedFiles[0];
     setFileName(file.name);
     setUploading(true);
     setError(null);
-
     try {
       const data = await uploadShapefile(file);
-      console.log('Upload response data:', data);
-      if (onUpload) {
-        onUpload(data);
-      }
+      if (onUpload) onUpload(data);
     } catch (err) {
       console.error('Upload failed:', err);
       setError(err.message || 'Upload failed');
@@ -41,24 +36,32 @@ export default function FileUpload({ onUpload }) {
     <div
       {...getRootProps()}
       style={{
-        border: '2px dashed #ccc',
-        borderRadius: '8px',
-        padding: '20px',
+        border: `2px dashed ${isDragActive ? '#60a5fa' : 'rgba(255,255,255,0.15)'}`,
+        borderRadius: '10px',
+        padding: '24px 16px',
         textAlign: 'center',
         cursor: 'pointer',
-        backgroundColor: isDragActive ? '#f0f8ff' : '#fff',
+        background: isDragActive ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)',
+        transition: 'all 0.2s',
       }}
     >
       <input {...getInputProps()} />
       {uploading ? (
-        <p>Uploading...</p>
-      ) : isDragActive ? (
-        <p>Drop the zip file here...</p>
+        <p style={{ color: '#94a3b8', fontSize: 13 }}>⏳ Uploading…</p>
       ) : (
-        <p>Drag & drop a shapefile (.zip) here, or click to select</p>
+        <>
+          <p style={{ color: '#cbd5e1', fontSize: 13, fontWeight: 500 }}>
+            {isDragActive ? 'Drop the file here…' : 'Drop your shapefile (.zip) here'}
+          </p>
+          <p style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>ZIP files only</p>
+        </>
       )}
-      {fileName && !uploading && <p style={{ color: '#666', marginTop: '8px' }}>✅ {fileName}</p>}
-      {error && <p style={{ color: 'red', marginTop: '8px' }}>❌ {error}</p>}
+      {fileName && !uploading && (
+        <p style={{ color: '#4ade80', fontSize: 12, marginTop: 8 }}>✅ {fileName}</p>
+      )}
+      {error && (
+        <p style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>❌ {error}</p>
+      )}
     </div>
   );
 }

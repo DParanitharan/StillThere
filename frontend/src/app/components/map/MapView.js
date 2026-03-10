@@ -19,11 +19,9 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
   const [showSatellite, setShowSatellite] = useState(false);
 
   useEffect(() => {
-    if (!geoData) return;
-
     const loadMap = async () => {
       const L = await import('leaflet');
-      const { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap, LayersControl } = await import('react-leaflet');
+      const { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } = await import('react-leaflet');
       await import('leaflet/dist/leaflet.css');
 
       delete L.Icon.Default.prototype._getIconUrl;
@@ -32,17 +30,13 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
         iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
       });
-
-      setMapComponents({ MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap, LayersControl, L });
+      setMapComponents({ MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap, L });
     };
     loadMap();
-  }, [geoData]);
+  }, []);
 
   const getInputStyle = () => ({
-    color: '#3388ff',
-    weight: 2,
-    fillColor: '#3388ff',
-    fillOpacity: 0.15,
+    color: '#3388ff', weight: 2, fillColor: '#3388ff', fillOpacity: 0.15,
   });
 
   const getClassifiedStyle = (feature) => {
@@ -165,7 +159,7 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
       <MapContainer center={getCenter(geoData)} zoom={15} style={{ height: '100%', width: '100%' }}>
 
         {!showSatellite && (
-          <TileLayer
+        <TileLayer
             attribution='&copy; OpenStreetMap contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
@@ -175,7 +169,7 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
           <TileLayer
             attribution="Google Satellite"
             url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
-          />
+        />
         )}
 
         {geoData?.features?.length > 0 && !hasClassifiedData && (
@@ -207,33 +201,34 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
           top: 10,
           right: 10,
           zIndex: 1000,
-          padding: '8px 12px',
+          padding: '8px 14px',
           backgroundColor: showSatellite ? '#1e293b' : '#fff',
           color: showSatellite ? '#fff' : '#1e293b',
           border: '2px solid #1e293b',
-          borderRadius: '6px',
+          borderRadius: '8px',
           cursor: 'pointer',
           fontSize: '13px',
           fontWeight: 'bold',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          fontFamily: 'inherit',
         }}
       >
         {showSatellite ? '🗺️ Street' : '🛰️ Satellite'}
       </button>
 
-      <div className={styles.legend}>
-        <h4>Legend</h4>
-        {[
-          { label: 'Unchanged', color: '#16a34a' },
-          { label: 'Modified', color: '#f59e0b' },
-          { label: 'Removed', color: '#ef4444' },
-        ].map(({ label, color }) => (
-          <div key={label} className={styles.legendItem}>
-            <span className={styles.legendColor} style={{ backgroundColor: color }}></span>
-            {label}
-          </div>
-        ))}
-      </div>
+        <div className={styles.legend}>
+          <h4>Legend</h4>
+          {[
+            { label: 'Unchanged', color: '#16a34a' },
+            { label: 'Modified', color: '#f59e0b' },
+            { label: 'Removed', color: '#ef4444' },
+          ].map(({ label, color }) => (
+            <div key={label} className={styles.legendItem}>
+              <span className={styles.legendColor} style={{ backgroundColor: color }}></span>
+              {label}
+            </div>
+          ))}
+        </div>
 
       <div className={styles.featureCount}>
         {(hasClassifiedData ? buildingsGeoData.features.length : geoData.features?.length) || 0} features loaded

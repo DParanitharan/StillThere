@@ -11,6 +11,7 @@ import geopandas as gpd
 from pathlib import Path
 from django.shortcuts import get_object_or_404
 from rest_framework import status
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -30,6 +31,8 @@ from apps.geo.utils import (
     get_progress,
     to_2d_geom,
 )
+from .models import AnalysisSession
+from .serializers import AnalysisSessionSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -296,4 +299,19 @@ class BuildingExtractionView(APIView):
         feature_collection = json.loads(result_gdf.to_json())
         logger.info(f"Returning {len(result_gdf)} classified buildings")
         return Response(feature_collection, status=200)
+
+class AnalysisSessionListView(APIView):
+    """List all analysis sessions or create a new one."""
+
+    def get(self, request):
+        sessions = AnalysisSession.objects.all()
+        serializer = AnalysisSessionSerializer(sessions, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        serializer = AnalysisSessionSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)  
 

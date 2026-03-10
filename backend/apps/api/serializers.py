@@ -4,6 +4,7 @@ import os
 import zipfile
 
 from rest_framework import serializers
+from .models import AnalysisSession
 
 
 class HealthResponseSerializer(serializers.Serializer):
@@ -99,3 +100,9 @@ class ExportResponseSerializer(serializers.Serializer):
     session_id = serializers.UUIDField()
     export_type = serializers.CharField()
     status = serializers.CharField()
+
+
+class AnalysisSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AnalysisSession
+        fields = ['id', 'session_id', 'title', 'filename', 'summary', 'created_at']

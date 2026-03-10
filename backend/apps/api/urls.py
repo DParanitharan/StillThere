@@ -12,6 +12,7 @@ from .views import (
     ExportStubView,
     BuildingExtractionView,
     ClassificationProgressView,
+    AnalysisSessionListView,
 )
 
 urlpatterns = [
@@ -24,4 +25,5 @@ urlpatterns = [
     path("export/<uuid:session_id>/<str:export_type>/", ExportStubView.as_view(), name="export-stub"),
     path("extract-buildings/", BuildingExtractionView.as_view(), name="extract-buildings"),
     path('progress/<str:session_id>/', ClassificationProgressView.as_view(), name='classification-progress'),
+    path('sessions/', AnalysisSessionListView.as_view(), name='analysis-session-list'),
 ]
