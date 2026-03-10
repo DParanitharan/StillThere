@@ -5,6 +5,7 @@ import Sidebar from "@/app/components/layout/Sidebar";
 import MapView from "@/app/components/map/MapView";
 import ProgressPanel from "@/app/components/progress/ProgressPanel";
 import FileUpload from "@/app/components/upload/FileUpload";
+import ChatInterface from "@/app/components/chat/ChatInterface";
 import {
   extractBuildings,
   geocodeAddress,
@@ -23,6 +24,7 @@ export default function Home() {
   const [searchPoint, setSearchPoint] = useState(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const summary = useMemo(() => {
     if (!buildingsGeoJSON?.features) return null;
@@ -118,7 +120,6 @@ export default function Home() {
         <Sidebar>
           <FileUpload onUpload={handleFileUpload} />
 
-          {/* Progress Panel - replaces the old ⏳ text */}
           {isExtracting && sessionId && (
             <ProgressPanel
               sessionId={sessionId}
@@ -244,6 +245,13 @@ export default function Home() {
             searchPoint={searchPoint}
           />
         </div>
+        <ChatInterface
+          isOpen={isChatOpen}
+          onToggle={() => setIsChatOpen(!isChatOpen)}
+          position="right"
+          geoData={geoData}
+          analysisResult={buildingsGeoJSON}
+        />
       </div>
     </div>
   );

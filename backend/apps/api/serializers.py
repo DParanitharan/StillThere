@@ -19,6 +19,7 @@ class UploadRequestSerializer(serializers.Serializer):
 
     MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024
     REQUIRED_SHAPEFILE_EXTENSIONS = {".shp", ".shx", ".dbf"}
+    RECOMMENDED_SHAPEFILE_EXTENSIONS = {".prj"}
 
     def validate_file(self, value):
         """Validate uploaded file type, size, and required shapefile members."""
@@ -42,10 +43,16 @@ class UploadRequestSerializer(serializers.Serializer):
         finally:
             value.seek(0)
 
-        if not self.REQUIRED_SHAPEFILE_EXTENSIONS.issubset(members):
-            raise serializers.ValidationError(
-                "ZIP must include .shp, .shx and .dbf shapefile components."
-            )
+        missing_required = self.REQUIRED_SHAPEFILE_EXTENSIONS - members
+        missing_recommended = self.RECOMMENDED_SHAPEFILE_EXTENSIONS - members
+
+        if missing_required or missing_recommended:
+            # Surface warnings through to the view instead of rejecting
+            value.missing_extension_warnings = [
+                f"Missing: {', '.join(missing_required or missing_recommended)}"
+            ]
+        else:
+            value.missing_extension_warnings = []
 
         return value
 
@@ -58,6 +65,7 @@ class UploadResponseSerializer(serializers.Serializer):
     crs = serializers.CharField(allow_blank=True)
     building_count = serializers.IntegerField()
     geojson = serializers.JSONField(allow_null=True)
+    warnings = serializers.ListField(child=serializers.CharField(), default=list)
 
 
 class OverlayResponseSerializer(serializers.Serializer):

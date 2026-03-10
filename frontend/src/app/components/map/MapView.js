@@ -152,6 +152,7 @@ export default function MapView({
       maxLng = -Infinity;
 
     data.features.forEach((feature) => {
+      if (!feature.geometry || !feature.geometry.coordinates) return;
       const coords = feature.geometry.coordinates;
 
       const processCoords = (coordArray) => {
