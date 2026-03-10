@@ -17,9 +17,9 @@ ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split("
 # Needed by GeoDjango when dynamic library name probing misses local versions.
 _gdal = os.getenv("GDAL_LIBRARY_PATH")
 _geos = os.getenv("GEOS_LIBRARY_PATH")
-if _gdal:
+if _gdal and Path(_gdal).exists():
     GDAL_LIBRARY_PATH = _gdal
-if _geos:
+if _geos and Path(_geos).exists():
     GEOS_LIBRARY_PATH = _geos
 
 INSTALLED_APPS = [

@@ -1,6 +1,7 @@
 # Setup and Workflow (Simple)
 
 ## Project Tree
+
 ```text
 .
 ├── .github/                               - GitHub settings/templates
@@ -96,20 +97,24 @@
 ```
 
 ## Shared Admin Login (local dev)
+
 Use this account for local testing:
+
 - Username: `admin`
 - Password: `Admin123!Temp`
 
 If missing, recreate it:
+
 ```bash
 cd backend
 source .venv/bin/activate
 python manage.py shell -c "from django.contrib.auth import get_user_model; U=get_user_model(); u,_=U.objects.get_or_create(username='admin', defaults={'email':'admin@example.com','is_staff':True,'is_superuser':True}); u.is_staff=True; u.is_superuser=True; u.set_password('Admin123!Temp'); u.save(); print('admin ready')"
 ```
 
-## 1) First-time setup (frontend + backend)
+## 1) First-time setup (choose one path)
 
 ### 1. Pull latest main first
+
 ```bash
 cd DSA3101-AY2520-Project5-GroupA
 git fetch origin
@@ -117,7 +122,8 @@ git checkout main
 git pull --ff-only origin main
 ```
 
-### 2. Backend setup
+### 2A. Local backend setup
+
 ```bash
 cd backend
 python3.12 -m venv .venv
@@ -128,33 +134,55 @@ cp .env.example .env
 python manage.py migrate
 ```
 
-### 3. Frontend setup
+### 3A. Local frontend setup
+
 Open a new terminal:
+
 ```bash
 cd DSA3101-AY2520-Project5-GroupA/frontend
 npm ci
 ```
+
 If `npm ci` fails:
+
 ```bash
 npm install
 ```
 
-### 4. Run both apps
+### 4A. Run both apps (local)
+
 Backend terminal:
+
 ```bash
 cd DSA3101-AY2520-Project5-GroupA/backend
 source .venv/bin/activate
 python manage.py runserver 8000
 ```
+
 Frontend terminal:
+
 ```bash
 cd DSA3101-AY2520-Project5-GroupA/frontend
 npm run dev
 ```
 
-## 2) Coming back later
+### 2B. Docker setup (replaces 2A-4A)
+
+```bash
+cd DSA3101-AY2520-Project5-GroupA
+docker compose build
+docker compose up -d
+```
+
+If backend restarts in a loop, remove macOS-only library paths from `backend/.env`:
+
+- `GDAL_LIBRARY_PATH=/opt/homebrew/...`
+- `GEOS_LIBRARY_PATH=/opt/homebrew/...`
+
+## 2) Coming back later (choose one path)
 
 ### 1. Pull latest main first
+
 ```bash
 cd DSA3101-AY2520-Project5-GroupA
 git fetch origin
@@ -162,7 +190,8 @@ git checkout main
 git pull --ff-only origin main
 ```
 
-### 2. Start backend
+### 2A. Start backend (local)
+
 ```bash
 cd backend
 source .venv/bin/activate
@@ -170,13 +199,30 @@ python manage.py migrate
 python manage.py runserver 8000
 ```
 
-### 3. Start frontend
+### 3A. Start frontend (local)
+
 ```bash
 cd frontend
 npm run dev
 ```
 
+### 2B. Start with Docker (replaces 2A-3A)
+
+```bash
+cd DSA3101-AY2520-Project5-GroupA
+docker compose up -d
+```
+
+Useful Docker checks:
+
+```bash
+docker compose ps
+docker compose logs -f backend
+```
+
 ## 3) Links
+
+- App via Nginx (Docker): `http://localhost`
 - Frontend: `http://localhost:3000`
 - Backend health: `http://127.0.0.1:8000/api/health/`
 - Admin panel: `http://127.0.0.1:8000/admin/`
@@ -184,6 +230,7 @@ npm run dev
 ## 4) Git pull and push flow
 
 ### Start new work
+
 ```bash
 cd DSA3101-AY2520-Project5-GroupA
 git fetch origin
@@ -193,6 +240,7 @@ git checkout -b <branch-name>
 ```
 
 ### Push work
+
 ```bash
 git add -A
 git commit -m "<clear message>"
@@ -200,6 +248,7 @@ git push -u origin <branch-name>
 ```
 
 ### Before opening PR, sync main
+
 ```bash
 git fetch origin
 git checkout <branch-name>
@@ -207,11 +256,13 @@ git merge origin/main
 ```
 
 ## 5) PR expectations
+
 - Add Python docstrings for non-trivial backend code.
 - Edit PR description before requesting merge.
 - State clearly what changed
 
 ## 6) Debug toolbar (quick use)
+
 - Requires `DJANGO_DEBUG=1` in `backend/.env`.
 - Open a Django HTML page, e.g. `http://127.0.0.1:8000/admin/login/`.
 - The toolbar appears on the page edge; click it to inspect SQL, request data, and timings.

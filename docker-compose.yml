@@ -29,7 +29,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
-      GDAL_LIBRARY_PATH: /usr/lib/aarch64-linux-gnu/libgdal.so.36
+      # GDAL_LIBRARY_PATH is optional and only needed if auto-detection fails
       DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,django_backend,backend,nginx_proxy"
       DJANGO_DEBUG: "1"
     ports:

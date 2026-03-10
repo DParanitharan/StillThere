@@ -1,6 +1,5 @@
 """API view implementations for upload, overlay, analysis, and export routes."""
 
-import json
 import logging
 import os
 import tempfile
@@ -9,11 +8,11 @@ import zipfile
 from pathlib import Path
 
 import geopandas as gpd
-from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import (
+    AllowAny,
+)  # from rest_framework.permissions import IsAuthenticated - change back to this when doing auth implementation for production
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -32,24 +31,6 @@ from apps.geo.models import UploadSession
 logger = logging.getLogger(__name__)
 
 VALID_EXPORT_TYPES = {"csv", "pdf"}
-
-
-@csrf_exempt
-def analyze(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "POST only"}, status=405)
-
-    payload = json.loads(request.body.decode("utf-8"))
-    geo_data = payload.get("geoData")
-
-    # TODO: do real analysis
-    return JsonResponse({
-        "added": 1,
-        "removed": 2,
-        "modified": 3,
-        "unchanged": 4,
-        "review": 5
-    })
 
 
 class UploadProcessingError(Exception):
