@@ -166,10 +166,10 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
         )}
 
         {showSatellite && (
-          <TileLayer
-            attribution="Google Satellite"
-            url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}"
-        />
+            <TileLayer
+              attribution='Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+              url='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            />
         )}
 
         {geoData?.features?.length > 0 && !hasClassifiedData && (
