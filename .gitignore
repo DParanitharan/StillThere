@@ -111,7 +111,6 @@ __pycache__/
 backend/.env
 .DS_Store
 .Rhistory
-=======
-
 .pylintrc
->>>>>>> main
+
+Shapefile.zip
