@@ -1,11 +1,14 @@
 """API view implementations for upload, overlay, analysis, and export routes."""
 
+import json
 import logging
 import os
 import tempfile
-import uuid
+import threading
 import requests
+import uuid
 import zipfile
+
 
 import geopandas as gpd
 from pathlib import Path
@@ -51,11 +54,13 @@ def _create_upload_session_from_zip(uploaded_file) -> UploadSession:
         tmp_path = tmp.name
 
     try:
-        # Find the .shp file inside the zip 
+        # Find the .shp file inside the zip
         with zipfile.ZipFile(tmp_path) as z:
-            shp_files = [f for f in z.namelist() if f.endswith('.shp')]
+            shp_files = [f for f in z.namelist() if f.endswith(".shp")]
             if not shp_files:
                 raise UploadProcessingError("No .shp file found in zip")
+            if len(shp_files) > 1:
+                raise UploadProcessingError("Multiple .shp files found in zip")
             shp_path = shp_files[0]
 
         tmp_path_str = Path(tmp_path).as_posix()
@@ -64,9 +69,9 @@ def _create_upload_session_from_zip(uploaded_file) -> UploadSession:
 
         if gdf.crs and gdf.crs.to_epsg() != 4326:
             gdf = gdf.to_crs(epsg=4326)
-            
+
         session.crs = str(gdf.crs) if gdf.crs else ""
-    
+
         session.building_count = int(len(gdf))
         session.footprints_geojson = gdf.__geo_interface__
         session.save(update_fields=["crs", "building_count", "footprints_geojson"])
@@ -169,7 +174,6 @@ class AnalysisStartStubView(APIView):
 class AnalysisResultsStubView(APIView):
     """Return results for a previously started analysis job."""
 
-
     def get(self, request, analysis_id):
         """Fetch analysis results by analysis ID."""
 
@@ -219,14 +223,52 @@ class ExportStubView(APIView):
         )
         return Response(serializer.data)
 
+
+class ClassificationResultView(APIView):
+    """Return the classified buildings GeoJSON for a completed session."""
+
+    def get(self, request, session_id):
+        result_path = os.path.join(
+            "media", "outputs", str(session_id), "buildings_classified.geojson"
+        )
+        if not os.path.exists(result_path):
+            return Response(
+                {"error": "Results not ready or session not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        try:
+            with open(result_path, "r", encoding="utf-8") as f:
+                return Response(json.load(f))
+        except (OSError, ValueError) as exc:
+            logger.error("Failed to read result for session %s: %s", session_id, exc)
+            return Response(
+                {"error": "Failed to read result file"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
 class ClassificationProgressView(APIView):
     """Poll classification progress for a session."""
 
     def get(self, request, session_id):
         progress = get_progress(session_id)
         if progress is None:
-            return Response({'status': 'not_found'}, status=404)
+            # Thread hasn't written to cache yet — return an initializing state
+            # so the frontend doesn't treat this as a hard error.
+            return Response(
+                {
+                    "phase": "initializing",
+                    "progress": 0,
+                    "processed": 0,
+                    "total": 0,
+                    "elapsed": 0,
+                    "eta_seconds": None,
+                    "counts": {"unchanged": 0, "modified": 0, "removed": 0, "error": 0},
+                    "logs": [],
+                }
+            )
         return Response(progress)
+
 
 class GeocodeView(APIView):
     """
@@ -237,11 +279,16 @@ class GeocodeView(APIView):
     def get(self, request):
         address = request.query_params.get("address")
         if not address:
-            return Response({"error": "Missing address"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Missing address"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         key = os.getenv("GOOGLE_EARTH_API_KEY")
         if not key:
-            return Response({"error": "GOOGLE_EARTH_API_KEY not set"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": "GOOGLE_EARTH_API_KEY not set"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         r = requests.get(
             "https://maps.googleapis.com/maps/api/geocode/json",
@@ -251,49 +298,60 @@ class GeocodeView(APIView):
 
         # Pass through Google's response (you can filter fields later)
         return Response(r.json(), status=r.status_code)
-    
+
+
 class BuildingExtractionView(APIView):
     """Extract buildings from a shapefile."""
 
     def post(self, request):
-        import json
-        import zipfile
 
-        session_id = request.data.get('session_id')
-        output_dir = 'media/outputs/'
+        session_id = request.data.get("session_id")
+        if not session_id:
+            return Response(
+                {"error": "Missing session_id"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        output_dir = os.path.join("media", "outputs", str(session_id))
         os.makedirs(output_dir, exist_ok=True)
 
-        logger.info(f"BuildingExtractionView POST called. Session: {session_id}")
+        logger.info("BuildingExtractionView POST called. Session: %s", session_id)
 
         session = get_object_or_404(UploadSession, id=session_id)
-        zip_path = session.source_zip.path
 
-        with zipfile.ZipFile(zip_path) as zf:
-            shp_files = [f for f in zf.namelist() if f.endswith('.shp')]
-            if not shp_files:
-                return Response({'error': 'No .shp found in zip'}, status=400)
-            shp_path = shp_files[0]
+        if not session.footprints_geojson:
+            return Response(
+                {"error": "Session has no stored footprints; re-upload the shapefile."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        gdf = gpd.read_file(f"zip://{zip_path}!{shp_path}")
-        gdf = gdf[gdf.geometry.notnull()].copy()
-        if gdf.crs and gdf.crs.to_epsg() != 4326:
-            gdf = gdf.to_crs(epsg=4326)
-        gdf = gdf[gdf.geometry.is_valid].copy()
-
-        logger.info(f"Input shapefile has {len(gdf)} polygons")
-
-        # Classify buildings against current imagery
-        result_gdf = classify_buildings(
-            input_gdf=gdf,
-            output_dir=output_dir,
-            zoom=19,
-            session_id=session_id,
+        gdf = gpd.GeoDataFrame.from_features(
+            session.footprints_geojson["features"], crs="EPSG:4326"
         )
+        gdf = gdf[gdf.geometry.notnull() & gdf.geometry.is_valid].copy()
 
-        # Clean up geometries
-        result_gdf['geometry'] = result_gdf['geometry'].apply(to_2d_geom)
+        logger.info("Input shapefile has %d polygons", len(gdf))
 
-        feature_collection = json.loads(result_gdf.to_json())
-        logger.info(f"Returning {len(result_gdf)} classified buildings")
-        return Response(feature_collection, status=200)
+        def _run_classification():
+            try:
+                result_gdf = classify_buildings(
+                    input_gdf=gdf,
+                    output_dir=output_dir,
+                    zoom=19,
+                    session_id=session_id,
+                )
+                result_gdf["geometry"] = result_gdf["geometry"].apply(to_2d_geom)
+                logger.info(
+                    "Classification complete for session %s (%d buildings)",
+                    session_id,
+                    len(result_gdf),
+                )
+            except Exception:
+                logger.exception("Classification failed for session %s", session_id)
 
+        thread = threading.Thread(target=_run_classification, daemon=True)
+        thread.start()
+
+        return Response(
+            {"session_id": session_id, "status": "processing"},
+            status=status.HTTP_202_ACCEPTED,
+        )

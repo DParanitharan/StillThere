@@ -8,8 +8,14 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret")
+_SECRET_KEY_DEFAULT = "dev-secret-do-not-use-in-production"
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", _SECRET_KEY_DEFAULT)
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
+
+if not DEBUG and SECRET_KEY == _SECRET_KEY_DEFAULT:
+    raise RuntimeError(
+        "DJANGO_SECRET_KEY must be set to a strong random value in production."
+    )
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 # Needed by GeoDjango when dynamic library name probing misses local versions.
@@ -97,8 +103,11 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+    ).split(",")
+    if origin.strip()
 ]
 
 REST_FRAMEWORK = {
@@ -106,7 +115,3 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ]
 }
-
-
-
-
