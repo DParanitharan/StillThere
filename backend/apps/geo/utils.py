@@ -7,12 +7,12 @@ import torch
 import io
 import logging
 import json
+import time
 from PIL import Image, ImageDraw
 from shapely.geometry import shape
 from shapely.ops import transform
 from rasterio.transform import from_bounds
 from rasterio.features import shapes as rasterio_shapes
-from segment_anything import sam_model_registry, SamPredictor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -52,6 +52,83 @@ CLASSIFY_THRESHOLDS = {
 
 logger.info(f"Classification thresholds: {CLASSIFY_THRESHOLDS}")
 
+
+# ── Progress tracker ─────────────────────────────────────────────────────────
+
+class ProgressTracker:
+    """Collects progress events that can be polled by the API."""
+
+    def __init__(self):
+        self.logs = []
+        self.phase = 'initializing'
+        self.phase_progress = 0.0        # 0–1
+        self.total_buildings = 0
+        self.processed_buildings = 0
+        self.start_time = time.time()
+        self.phase_start_time = time.time()
+        self.counts = {'unchanged': 0, 'modified': 0, 'removed': 0, 'error': 0}
+
+    def log(self, message, level='info'):
+        elapsed = round(time.time() - self.start_time, 1)
+        entry = {
+            'time': elapsed,
+            'phase': self.phase,
+            'message': message,
+            'level': level,
+            'progress': round(self.phase_progress * 100, 1),
+            'processed': self.processed_buildings,
+            'total': self.total_buildings,
+            'counts': dict(self.counts),
+        }
+        self.logs.append(entry)
+        logger.info(f"[{elapsed}s] [{self.phase}] {message}")
+
+    def set_phase(self, phase, message=None):
+        self.phase = phase
+        self.phase_progress = 0.0
+        self.phase_start_time = time.time()
+        self.log(message or f"Starting {phase}")
+
+    def set_progress(self, current, total, message=None):
+        self.phase_progress = current / total if total > 0 else 0
+        self.processed_buildings = current
+        if message:
+            self.log(message)
+
+    def to_dict(self):
+        elapsed = round(time.time() - self.start_time, 1)
+        # Estimate remaining time
+        eta = None
+        if self.processed_buildings > 0 and self.total_buildings > 0:
+            rate = elapsed / self.processed_buildings
+            remaining = self.total_buildings - self.processed_buildings
+            eta = round(rate * remaining, 1)
+
+        return {
+            'phase': self.phase,
+            'progress': round(self.phase_progress * 100, 1),
+            'processed': self.processed_buildings,
+            'total': self.total_buildings,
+            'elapsed': elapsed,
+            'eta_seconds': eta,
+            'counts': dict(self.counts),
+            'logs': self.logs[-50:],  # Last 50 entries
+        }
+
+
+# In-memory store for active progress trackers (keyed by session_id)
+_active_progress = {}
+
+
+def get_progress(session_id):
+    """Retrieve progress for a session (called by the API view)."""
+    tracker = _active_progress.get(session_id)
+    if tracker is None:
+        return None
+    return tracker.to_dict()
+
+
+# ── helpers ──────────────────────────────────────────────────────────────────
 
 def _meters_per_pixel(lat, zoom):
     return 156543.03392 * math.cos(lat * math.pi / 180) / (2 ** zoom)
@@ -115,7 +192,7 @@ def _group_buildings_into_tiles(gdf, tile_size_m=180):
     return tiles
 
 
-# Phase 1: Fast pixel-based comparison to find "removed" buildings 
+# Phase 1: Fast pixel-based comparison to find "removed" buildings
 
 def _analyze_building_pixels(img_array, polygon_mask):
     masked_pixels = img_array[polygon_mask]
@@ -164,9 +241,10 @@ def _analyze_building_pixels(img_array, polygon_mask):
     }
 
 
-#  Phase 2: SAM shape comparison 
+#  Phase 2: SAM shape comparison
 
 def _load_sam_predictor():
+    from segment_anything import sam_model_registry, SamPredictor
 
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
     for model_type, filename in [('vit_b', 'sam_vit_b_01ec64.pth'),
@@ -198,19 +276,16 @@ def _sam_extract_building(predictor, img_array, center_px, center_py,
                           bbox_px, img_transform):
     """
     Run SAM with BOTH a point prompt and a box prompt for better accuracy.
-    The box prompt constrains SAM to the region of the input polygon.
     """
     size_px = img_array.shape[0]
     pad = CLASSIFY_THRESHOLDS['box_pad_px']
     sam_confidence_min = CLASSIFY_THRESHOLDS['sam_confidence_min']
 
-    # Clamp box to image bounds with padding
     x_min = max(0, bbox_px[0] - pad)
     y_min = max(0, bbox_px[1] - pad)
     x_max = min(size_px - 1, bbox_px[2] + pad)
     y_max = min(size_px - 1, bbox_px[3] + pad)
 
-    # Use box + point prompt together for best results
     masks, scores, _ = predictor.predict(
         point_coords=np.array([[center_px, center_py]]),
         point_labels=np.array([1]),
@@ -238,31 +313,40 @@ def _sam_extract_building(predictor, img_array, center_px, center_py,
 
 # ── Main classification pipeline ────────────────────────────────────────────
 
-def classify_buildings(input_gdf, output_dir, zoom=19):
+def classify_buildings(input_gdf, output_dir, zoom=19, session_id=None):
     """
-    Two-phase classification.  All thresholds are read from
-    CLASSIFY_THRESHOLDS (populated from env vars at import time).
-
-    Phase 1 (fast, all buildings):
-      Pixel analysis → score each polygon
-      score < threshold_removed  → "removed"
-      score >= threshold_removed → candidate (proceed to Phase 2)
-
-    Phase 2 (SAM with box+point prompt):
-      Compare IoU between input polygon and SAM-detected polygon:
-        IoU >= iou_unchanged      → "unchanged"
-        IoU >= iou_modified_low   → "modified"
-        IoU <  iou_modified_low   → fallback checks
-        No polygon found          → "removed"
+    Two-phase classification with progress tracking.
+    Pass session_id to enable progress polling from the API.
     """
-    #  Read thresholds 
+    # ── Set up progress tracker ─────────────────────────────────────────
+    progress = ProgressTracker()
+    if session_id:
+        _active_progress[session_id] = progress
+
+    try:
+        return _classify_buildings_inner(input_gdf, output_dir, zoom, progress)
+    finally:
+        # Mark complete
+        progress.set_phase('complete', 'Classification finished')
+        # Clean up after a delay (keep around for final poll)
+        if session_id:
+            import threading
+            def _cleanup():
+                time.sleep(30)
+                _active_progress.pop(session_id, None)
+            threading.Thread(target=_cleanup, daemon=True).start()
+
+
+def _classify_buildings_inner(input_gdf, output_dir, zoom, progress):
+    # ── Read thresholds ─────────────────────────────────────────────────
     threshold_removed   = CLASSIFY_THRESHOLDS['threshold_removed']
     iou_unchanged       = CLASSIFY_THRESHOLDS['iou_unchanged']
     iou_modified_low    = CLASSIFY_THRESHOLDS['iou_modified_low']
     overlap_ratio_min   = CLASSIFY_THRESHOLDS['overlap_ratio_min']
     pixel_fallback_min  = CLASSIFY_THRESHOLDS['pixel_fallback_min']
 
-    logger.info(f"Using thresholds: {CLASSIFY_THRESHOLDS}")
+    progress.set_phase('setup', 'Reading thresholds and validating input')
+    progress.log(f"Thresholds: {CLASSIFY_THRESHOLDS}")
 
     api_key = os.getenv("GOOGLE_MAPS_API_KEY")
     if not api_key:
@@ -270,22 +354,31 @@ def classify_buildings(input_gdf, output_dir, zoom=19):
 
     gdf = input_gdf.to_crs(epsg=4326).copy()
     gdf = gdf[gdf.geometry.notnull() & gdf.geometry.is_valid].copy()
-    logger.info(f"Classifying {len(gdf)} buildings")
+    progress.total_buildings = len(gdf)
+    progress.log(f"Loaded {len(gdf)} valid building polygons")
 
+    # ── Tile grouping ───────────────────────────────────────────────────
+    progress.set_phase('tiling', 'Grouping buildings into spatial tiles')
     tile_groups = _group_buildings_into_tiles(gdf, tile_size_m=180)
-    logger.info(f"Grouped into {len(tile_groups)} tiles")
+    progress.log(f"Created {len(tile_groups)} tiles (180m grid)")
 
     size_px = 640
     phase1_results = {}
     sam_candidates = []
     total_processed = 0
 
-    # phase 1: Fast pixel comparion
-    logger.info("=== Phase 1: Pixel-comparison ===")
+    # ── PHASE 1: Pixel triage ───────────────────────────────────────────
+    progress.set_phase('phase1_satellite', 'Downloading satellite imagery & pixel analysis')
     tile_cache = {}
+    total_tiles = len(tile_groups)
 
     for tile_idx, (tile_lat, tile_lng, buildings) in enumerate(tile_groups):
         try:
+            progress.log(
+                f"Tile {tile_idx+1}/{total_tiles}: downloading satellite image "
+                f"({len(buildings)} buildings)"
+            )
+
             mpp = _meters_per_pixel(tile_lat, zoom)
             img_array = _download_google_tile(tile_lat, tile_lng, zoom, size_px, api_key)
             bounds = _tile_bounds(tile_lat, tile_lng, size_px, mpp)
@@ -314,16 +407,19 @@ def classify_buildings(input_gdf, output_dir, zoom=19):
                         'iou': 0.0,
                         'metrics': json.dumps(metrics),
                     }
+                    progress.counts['removed'] += 1
                 else:
                     sam_candidates.append((bld_idx, row, tile_idx))
 
             total_processed += len(buildings)
-            if (tile_idx + 1) % 10 == 0 or tile_idx == 0:
-                logger.info(f"Phase 1 - Tile {tile_idx+1}/{len(tile_groups)}: "
-                            f"{total_processed}/{len(gdf)} processed")
+            progress.set_progress(
+                total_processed, len(gdf),
+                f"Phase 1: {total_processed}/{len(gdf)} buildings analyzed"
+            )
 
         except Exception as e:
             logger.error(f"Phase 1 error on tile {tile_idx}: {e}")
+            progress.log(f"Error on tile {tile_idx}: {e}", level='error')
             for bld_idx, row in buildings:
                 phase1_results[bld_idx] = {
                     'geometry': row.geometry,
@@ -333,16 +429,23 @@ def classify_buildings(input_gdf, output_dir, zoom=19):
                     'iou': 0.0,
                     'metrics': json.dumps({'error': str(e)}),
                 }
+                progress.counts['error'] += 1
             total_processed += len(buildings)
 
     removed_count = sum(1 for r in phase1_results.values() if r['status'] == 'removed')
-    logger.info(f"Phase 1 done: {removed_count} removed, "
-                f"{len(sam_candidates)} need SAM verification")
+    progress.log(
+        f"Phase 1 complete: {removed_count} removed, "
+        f"{len(sam_candidates)} need SAM verification"
+    )
 
-    # Phase 2: SAM shape comparison with box+point prompts 
+    # ── PHASE 2: SAM ────────────────────────────────────────────────────
     if sam_candidates:
-        logger.info(f"=== Phase 2: SAM verification for {len(sam_candidates)} buildings ===")
+        progress.set_phase('phase2_sam_loading', 'Loading SAM model into memory')
+        progress.log(f"Loading SAM model for {len(sam_candidates)} buildings…")
         predictor = _load_sam_predictor()
+        progress.log("SAM model loaded successfully")
+
+        progress.set_phase('phase2_sam', f'Running SAM segmentation on {len(sam_candidates)} buildings')
 
         candidates_by_tile = {}
         for bld_idx, row, tile_idx in sam_candidates:
@@ -367,7 +470,6 @@ def classify_buildings(input_gdf, output_dir, zoom=19):
                 cx, cy = inv_transform * (centroid.x, centroid.y)
                 cx, cy = int(max(0, min(cx, size_px-1))), int(max(0, min(cy, size_px-1)))
 
-                # Compute bounding box in pixel space
                 pixel_coords = _polygon_to_pixel_coords(polygon, inv_transform)
                 xs = [p[0] for p in pixel_coords]
                 ys = [p[1] for p in pixel_coords]
@@ -387,6 +489,7 @@ def classify_buildings(input_gdf, output_dir, zoom=19):
                         'metrics': json.dumps({'sam_score': sam_score,
                                                'note': 'SAM found no building'}),
                     }
+                    progress.counts['removed'] += 1
                 else:
                     iou = _compute_iou(polygon, sam_poly)
 
@@ -395,7 +498,6 @@ def classify_buildings(input_gdf, output_dir, zoom=19):
                     elif iou >= iou_modified_low:
                         status = 'modified'
                     else:
-                        # Very low IoU — likely SAM grabbed something wrong.
                         try:
                             overlap_ratio = polygon.intersection(sam_poly).area / polygon.area
                         except Exception:
@@ -403,9 +505,21 @@ def classify_buildings(input_gdf, output_dir, zoom=19):
 
                         if overlap_ratio > overlap_ratio_min:
                             status = 'modified'
+                        elif iou == 0.0 and overlap_ratio == 0.0:
+                            pixel_coords_clamped = [
+                                (max(0, min(px, size_px-1)), max(0, min(py, size_px-1)))
+                                for px, py in _polygon_to_pixel_coords(polygon, inv_transform)
+                            ]
+                            poly_mask = _create_polygon_mask(
+                                pixel_coords_clamped, img_array.shape[:2]
+                            )
+                            px_score, _ = _analyze_building_pixels(img_array, poly_mask)
+                            if px_score >= 0.8 and sam_score >= 0.9:
+                                status = 'modified'
+                                iou = 0.0
+                            else:
+                                status = 'removed'
                         else:
-                            # SAM polygon doesn't overlap input polygon
-                            # → fallback to pixel analysis
                             pixel_coords_clamped = [
                                 (max(0, min(px, size_px-1)), max(0, min(py, size_px-1)))
                                 for px, py in _polygon_to_pixel_coords(polygon, inv_transform)
@@ -420,6 +534,8 @@ def classify_buildings(input_gdf, output_dir, zoom=19):
                             else:
                                 status = 'removed'
 
+                    progress.counts[status] += 1
+
                     phase1_results[bld_idx] = {
                         'geometry': polygon,
                         'status': status,
@@ -433,12 +549,20 @@ def classify_buildings(input_gdf, output_dir, zoom=19):
                     }
 
                 sam_processed += 1
-                if sam_processed % 50 == 0:
-                    logger.info(f"Phase 2: {sam_processed}/{len(sam_candidates)} done")
+                if sam_processed % 20 == 0 or sam_processed == len(sam_candidates):
+                    progress.set_progress(
+                        sam_processed, len(sam_candidates),
+                        f"SAM: {sam_processed}/{len(sam_candidates)} — "
+                        f"U:{progress.counts['unchanged']} "
+                        f"M:{progress.counts['modified']} "
+                        f"R:{progress.counts['removed']}"
+                    )
 
-        logger.info(f"Phase 2 done: {sam_processed} buildings verified")
+        progress.log(f"Phase 2 done: {sam_processed} buildings verified by SAM")
 
-    #  result
+    # ── Build result ────────────────────────────────────────────────────
+    progress.set_phase('saving', 'Building result GeoJSON')
+
     rows = []
     for bld_idx, data in phase1_results.items():
         rows.append({
@@ -453,11 +577,11 @@ def classify_buildings(input_gdf, output_dir, zoom=19):
     result_gdf = gpd.GeoDataFrame(rows, crs='EPSG:4326')
 
     counts = result_gdf['status'].value_counts()
-    logger.info(f"Final classification:\n{counts.to_string()}")
+    progress.log(f"Final: {counts.to_dict()}")
 
     out_path = os.path.join(output_dir, 'buildings_classified.geojson')
     result_gdf.to_file(out_path, driver='GeoJSON')
-    logger.info(f"Saved to {out_path}")
+    progress.log(f"Saved to {out_path}")
 
     return result_gdf
 

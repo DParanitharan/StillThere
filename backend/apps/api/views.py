@@ -27,6 +27,7 @@ from apps.api.serializers import (
 from apps.geo.models import UploadSession
 from apps.geo.utils import (
     classify_buildings,
+    get_progress,
     to_2d_geom,
 )
 
@@ -218,6 +219,15 @@ class ExportStubView(APIView):
         )
         return Response(serializer.data)
 
+class ClassificationProgressView(APIView):
+    """Poll classification progress for a session."""
+
+    def get(self, request, session_id):
+        progress = get_progress(session_id)
+        if progress is None:
+            return Response({'status': 'not_found'}, status=404)
+        return Response(progress)
+
 class GeocodeView(APIView):
     """
     Backend-only Google API call. Frontend calls this endpoint; backend uses secret key.
@@ -243,6 +253,8 @@ class GeocodeView(APIView):
         return Response(r.json(), status=r.status_code)
     
 class BuildingExtractionView(APIView):
+    """Extract buildings from a shapefile."""
+
     def post(self, request):
         import json
         import zipfile
@@ -275,6 +287,7 @@ class BuildingExtractionView(APIView):
             input_gdf=gdf,
             output_dir=output_dir,
             zoom=19,
+            session_id=session_id,
         )
 
         # Clean up geometries

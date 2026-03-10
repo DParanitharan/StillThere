@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Navbar from '@/app/components/layout/Navbar';
 import Sidebar from '@/app/components/layout/Sidebar';
 import MapView from '@/app/components/map/MapView';
 import FileUpload from '@/app/components/upload/FileUpload';
-import AnalysisSummary from '@/app/components/analysis/AnalysisSummary';
+import ProgressPanel from '@/app/components/progress/ProgressPanel';
 import { extractBuildings } from '@/services/api';
 import styles from './page.module.css';
 
 export default function Home() {
-  // Shared state - components will use these
   const [geoData, setGeoData] = useState(null);
   const [buildingsGeoJSON, setBuildingsGeoJSON] = useState(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
   const [address, setAddress] = useState("");
   const [searchPoint, setSearchPoint] = useState(null);
   const [geoLoading, setGeoLoading] = useState(false);
@@ -29,7 +29,6 @@ export default function Home() {
     return counts;
   }, [buildingsGeoJSON]);
 
-  // Filter GeoJSON by status
   const filteredGeoJSON = useMemo(() => {
     if (!buildingsGeoJSON || statusFilter === 'all') return buildingsGeoJSON;
     return {
@@ -45,15 +44,16 @@ export default function Home() {
     if (data?.geojson) {
       setGeoData(data.geojson);
     }
-    const sessionId = data?.session_id;
-    if (!sessionId) {
+    const sid = data?.session_id;
+    if (!sid) {
       console.error("No session_id returned from upload");
       return;
     }
+    setSessionId(sid);
     try {
       setIsExtracting(true);
-      console.log('Classifying buildings for:', sessionId);
-      const result = await extractBuildings(sessionId);
+      console.log('Classifying buildings for:', sid);
+      const result = await extractBuildings(sid);
       console.log('Result features:', result?.features?.length);
       setBuildingsGeoJSON(result);
     } catch (err) {
@@ -62,16 +62,18 @@ export default function Home() {
       setIsExtracting(false);
     }
   };
-  
+
+  const handleProgressComplete = useCallback(() => {
+    // Progress panel shows complete — the extractBuildings promise
+    // will resolve shortly after and set buildingsGeoJSON
+  }, []);
 
   const handleGeocode = async () => {
     if (!address.trim()) return;
-
     setGeoLoading(true);
     try {
       const res = await fetch(`/api/geocode/?address=${encodeURIComponent(address)}`);
       const data = await res.json();
-
       if (data.status !== "OK" || !data.results?.length) {
         alert(`Geocode failed: ${data.status}`);
         return;
@@ -93,17 +95,18 @@ export default function Home() {
         <Sidebar>
           <FileUpload onUpload={handleFileUpload} />
 
-          {isExtracting && (
-            <p style={{ padding: '8px 0', color: '#e74c3c', fontSize: '14px' }}>
-              ⏳ Classifying buildings against imagery...
-            </p>
+          {/* Progress Panel - replaces the old ⏳ text */}
+          {isExtracting && sessionId && (
+            <ProgressPanel
+              sessionId={sessionId}
+              onComplete={handleProgressComplete}
+            />
           )}
 
-          {summary && (
+          {summary && !isExtracting && (
             <div style={{ marginTop: '12px', fontSize: '14px', lineHeight: '1.8' }}>
               <h4 style={{ marginBottom: '8px' }}>Classification Results</h4>
 
-              {/* Filter buttons */}
               <div style={{ display: 'flex', gap: '4px', marginBottom: '8px', flexWrap: 'wrap' }}>
                 {['all', 'unchanged', 'modified', 'removed'].map((s) => (
                   <button
@@ -156,7 +159,6 @@ export default function Home() {
               {geoLoading ? "Searching..." : "Go"}
             </button>
           </div>
-
         </Sidebar>
         <div className={styles.mapContainer}>
           <MapView

@@ -11,6 +11,7 @@ from .views import (
     AnalyzeChangesStubView,
     ExportStubView,
     BuildingExtractionView,
+    ClassificationProgressView,
 )
 
 urlpatterns = [
@@ -22,4 +23,5 @@ urlpatterns = [
     path("analyze/<uuid:session_id>/", AnalyzeChangesStubView.as_view(), name="analyze-changes"),
     path("export/<uuid:session_id>/<str:export_type>/", ExportStubView.as_view(), name="export-stub"),
     path("extract-buildings/", BuildingExtractionView.as_view(), name="extract-buildings"),
+    path('progress/<str:session_id>/', ClassificationProgressView.as_view(), name='classification-progress'),
 ]

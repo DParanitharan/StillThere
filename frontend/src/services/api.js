@@ -33,4 +33,10 @@ export async function extractBuildings(sessionId) {
 export const runAnalysis = (uploadId) => api.post(`/api/analysis/${uploadId}/`);
 export const getAnalysisResults = (analysisId) => api.get(`/api/analysis/${analysisId}/results/`);
 
+export async function pollProgress(sessionId) {
+  const res = await fetch(`/api/progress/${sessionId}/`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
 export default api;
