@@ -493,14 +493,15 @@ def _classify_buildings_inner(input_gdf, output_dir, zoom, progress):
                 else:
                     iou = _compute_iou(polygon, sam_poly)
 
-                    if iou >= iou_unchanged:
+                    if iou >= iou_unchanged: #iou >= 0.35:
                         status = 'unchanged'
-                    elif iou >= iou_modified_low:
+                    elif iou < iou_unchanged and iou >= iou_modified_low: # 0.10 <= iou < 0.35 
                         status = 'modified'
-                    else:
+                    else: #iou < 0.10
                         try:
                             overlap_ratio = polygon.intersection(sam_poly).area / polygon.area
-                        except Exception:
+                        except (ZeroDivisionError, Exception) as e:
+                            logger.warning(f"Overlap ratio computation failed for building {bld_idx}: {e}")
                             overlap_ratio = 0.0
 
                         if overlap_ratio > overlap_ratio_min:
