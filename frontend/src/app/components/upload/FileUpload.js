@@ -1,85 +1,67 @@
-"use client";
+'use client';
 
-import { useCallback, useState } from "react";
-import { useDropzone } from "react-dropzone";
-import { uploadShapefile } from "@/services/api";
-import styles from "./FileUpload.module.css";
+import { useState, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { uploadShapefile } from '@/services/api';
 
 export default function FileUpload({ onUpload }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
   const [fileName, setFileName] = useState(null);
 
-  const onDrop = useCallback(
-    async (acceptedFiles) => {
-      const file = acceptedFiles[0];
-      if (!file) return;
-
-      if (!file.name.toLowerCase().endsWith(".zip")) {
-        setError("Please upload a ZIP file containing your shapefile.");
-        return;
-      }
-
-      setError(null);
-      setUploading(true);
-      setFileName(file.name);
-
-      try {
-        const data = await uploadShapefile(file);
-        console.log("Upload response data:", data);
-        if (onUpload) {
-          onUpload(data);
-        }
-      } catch (err) {
-        console.error("Upload error:", err);
-        setError(err?.message || "Upload failed. Please try again.");
-      } finally {
-        setUploading(false);
-      }
-    },
-    [onUpload],
-  );
-
-  const onDropRejected = useCallback((fileRejections) => {
-    console.error("Rejected files:", fileRejections);
-    setError("File rejected. Please upload a valid .zip shapefile archive.");
-  }, []);
+  const onDrop = useCallback(async (acceptedFiles) => {
+    if (acceptedFiles.length === 0) return;
+    const file = acceptedFiles[0];
+    setFileName(file.name);
+    setUploading(true);
+    setError(null);
+    try {
+      const data = await uploadShapefile(file);
+      if (onUpload) onUpload(data);
+    } catch (err) {
+      console.error('Upload failed:', err);
+      setError(err.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }, [onUpload]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    onDropRejected,
-    accept: {
-      "application/zip": [".zip"],
-      "application/x-zip-compressed": [".zip"],
-    },
-    maxFiles: 1,
+    accept: { 'application/zip': ['.zip'] },
+    multiple: false,
   });
 
   return (
-    <div className={styles.container}>
-      <h3 className={styles.title}>Upload Shapefile</h3>
-      <div
-        {...getRootProps()}
-        className={`${styles.dropzone} ${isDragActive ? styles.active : ""}`}
-      >
-        <input {...getInputProps()} />
-        {uploading ? (
-          <p>Uploading...</p>
-        ) : (
-          <>
-            <span className={styles.uploadIcon}>Upload</span>
-            <p>Drag & drop a ZIP file here</p>
-            <p className={styles.subtext}>or click to browse</p>
-          </>
-        )}
-      </div>
-      {fileName && !error && (
-        <div className={styles.fileInfo}>{fileName}</div>
+    <div
+      {...getRootProps()}
+      style={{
+        border: `2px dashed ${isDragActive ? '#60a5fa' : 'rgba(255,255,255,0.15)'}`,
+        borderRadius: '10px',
+        padding: '24px 16px',
+        textAlign: 'center',
+        cursor: 'pointer',
+        background: isDragActive ? 'rgba(59,130,246,0.08)' : 'rgba(255,255,255,0.03)',
+        transition: 'all 0.2s',
+      }}
+    >
+      <input {...getInputProps()} />
+      {uploading ? (
+        <p style={{ color: '#94a3b8', fontSize: 13 }}>⏳ Uploading…</p>
+      ) : (
+        <>
+          <p style={{ color: '#cbd5e1', fontSize: 13, fontWeight: 500 }}>
+            {isDragActive ? 'Drop the file here…' : 'Drop your shapefile (.zip) here'}
+          </p>
+          <p style={{ color: '#64748b', fontSize: 11, marginTop: 4 }}>ZIP files only</p>
+        </>
       )}
-      {error && <p className={styles.error}>{error}</p>}
-      <p className={styles.hint}>
-        Upload ZIP containing .shp, .shx, .dbf, .prj files
-      </p>
+      {fileName && !uploading && (
+        <p style={{ color: '#4ade80', fontSize: 12, marginTop: 8 }}>✅ {fileName}</p>
+      )}
+      {error && (
+        <p style={{ color: '#f87171', fontSize: 12, marginTop: 8 }}>❌ {error}</p>
+      )}
     </div>
   );
 }

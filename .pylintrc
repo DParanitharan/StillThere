@@ -1,5 +1,0 @@
-[MASTER]
-load-plugins=pylint_django
-
-[DJANGO]
-django-settings-module=nkbp_backend.settings
