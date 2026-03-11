@@ -39,4 +39,19 @@ export async function pollProgress(sessionId) {
   return res.json();
 }
 
+/**
+ * @param {string} sessionId - Upload session ID
+ * @param {object} params - Optional filters: { classification, bbox }
+ */
+export async function getClassificationResults(sessionId, params = {}) {
+  const query = new URLSearchParams();
+  if (params.classification) query.set("classification", params.classification);
+  if (params.bbox) query.set("bbox", params.bbox);
+
+  const url = `/api/classification/${sessionId}/${query.toString() ? '?' + query : ''}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch classification: ${res.status}`);
+  return res.json();
+}
+
 export default api;
