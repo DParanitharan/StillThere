@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import styles from './MapView.module.css';
 
 function FlyTo({ searchPoint, useMap }) {
@@ -14,7 +14,27 @@ function FlyTo({ searchPoint, useMap }) {
   return null;
 }
 
-export default function MapView({ geoData, buildingsGeoData, analysisResult, searchPoint }) {
+function FitBounds({ geojson, useMap, L }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!geojson || !geojson.features?.length) return;
+
+    try {
+      const geoLayer = L.geoJSON(geojson);
+      const bounds = geoLayer.getBounds();
+      if (bounds.isValid()) {
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 18 });
+      }
+    } catch (e) {
+      console.warn('FitBounds failed:', e);
+    }
+  }, [geojson, map, L]);
+
+  return null;
+}
+
+export default function MapView({ geoData, buildingsGeoData, searchPoint, chatOverlay }) {
   const [MapComponents, setMapComponents] = useState(null);
   const [showSatellite, setShowSatellite] = useState(false);
 
@@ -53,6 +73,25 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
     }
   };
 
+  const getChatOverlayStyle = (feature) => {
+    const classification = feature?.properties?.classification;
+    const fillColors = {
+      unchanged: '#16a34a',
+      modified: '#f59e0b',
+      removed: '#ef4444',
+      new: '#3b82f6',
+    };
+    const fillColor = fillColors[classification] || '#06b6d4';
+
+    return {
+      color: '#06b6d4',       // cyan outline
+      weight: 3,
+      fillColor: fillColor,
+      fillOpacity: 0.5,
+      dashArray: '6 3',       // dashed border to visually separate from base layer
+    };
+  };
+
   const onEachFeature = (feature, layer) => {
     const props = feature?.properties || {};
     let metrics = {};
@@ -82,6 +121,36 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
     );
   };
 
+  /**
+   * Popup for chat overlay features — shows whatever properties the query returned.
+   */
+  const onEachChatFeature = (feature, layer) => {
+    const props = feature?.properties || {};
+    const classification = props.classification;
+    const statusColor = {
+      unchanged: '#16a34a',
+      modified: '#f59e0b',
+      removed: '#ef4444',
+      new: '#3b82f6',
+    }[classification] || '#06b6d4';
+
+    const rows = Object.entries(props)
+      .filter(([k]) => k !== 'st_asgeojson') // exclude raw geojson column
+      .map(([k, v]) => {
+        const displayVal = typeof v === 'number' ? v.toLocaleString(undefined, { maximumFractionDigits: 4 }) : String(v ?? '—');
+        return `<tr><td><b>${k}</b></td><td>${displayVal}</td></tr>`;
+      })
+      .join('');
+
+    layer.bindPopup(
+      `<div style="min-width:220px">` +
+      `<h4 style="margin:0 0 8px;color:${statusColor}">` +
+      `🔍 Query Result</h4>` +
+      `<table style="font-size:12px;width:100%">${rows}</table>` +
+      `</div>`
+    );
+  };
+
   const getCenter = (data) => {
     if (!data || !data.features || data.features.length === 0) {
       return [1.3521, 103.8198]; // Default: Singapore
@@ -91,8 +160,9 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
     let minLng = Infinity, maxLng = -Infinity;
 
     data.features.forEach((feature) => {
+      if (!feature.geometry?.coordinates) return;
       const coords = feature.geometry.coordinates;
-      
+
       const processCoords = (coordArray) => {
         if (typeof coordArray[0] === 'number') {
           // [lng, lat]
@@ -108,8 +178,14 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
       processCoords(coords);
     });
 
+    if (!isFinite(minLat)) return [1.3521, 103.8198];
     return [(minLat + maxLat) / 2, (minLng + maxLng) / 2];
   };
+
+  const chatOverlayKey = useMemo(() => {
+    if (!chatOverlay?.features?.length) return 'chat-none';
+    return `chat-${chatOverlay.features.length}-${Date.now()}`;
+  }, [chatOverlay]);
 
   if (!geoData) {
     return (
@@ -148,9 +224,10 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
     );
   }
 
-  const { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } = MapComponents;
+  const { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap, L } = MapComponents;
 
   const hasClassifiedData = buildingsGeoData?.features?.length > 0;
+  const hasChatOverlay = chatOverlay?.features?.length > 0;
   const inputKey = geoData ? `input-${geoData.features?.length}` : 'none';
   const buildingsKey = buildingsGeoData ? `bld-${buildingsGeoData.features?.length}-${buildingsGeoData.features?.[0]?.properties?.status}` : 'none';
 
@@ -159,17 +236,17 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
       <MapContainer center={getCenter(geoData)} zoom={15} style={{ height: '100%', width: '100%' }}>
 
         {!showSatellite && (
-        <TileLayer
+          <TileLayer
             attribution='&copy; OpenStreetMap contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
         )}
 
         {showSatellite && (
-            <TileLayer
-              attribution='Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
-              url='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-            />
+          <TileLayer
+            attribution='Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics'
+            url='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+          />
         )}
 
         {geoData?.features?.length > 0 && !hasClassifiedData && (
@@ -183,6 +260,19 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
             style={getClassifiedStyle}
             onEachFeature={onEachFeature}
           />
+        )}
+
+        {hasChatOverlay && (
+          <GeoJSON
+            key={chatOverlayKey}
+            data={chatOverlay}
+            style={getChatOverlayStyle}
+            onEachFeature={onEachChatFeature}
+          />
+        )}
+
+        {hasChatOverlay && (
+          <FitBounds geojson={chatOverlay} useMap={useMap} L={L} />
         )}
 
         <FlyTo searchPoint={searchPoint} useMap={useMap} />
@@ -216,22 +306,24 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
         {showSatellite ? '🗺️ Street' : '🛰️ Satellite'}
       </button>
 
-        <div className={styles.legend}>
-          <h4>Legend</h4>
-          {[
-            { label: 'Unchanged', color: '#16a34a' },
-            { label: 'Modified', color: '#f59e0b' },
-            { label: 'Removed', color: '#ef4444' },
-          ].map(({ label, color }) => (
-            <div key={label} className={styles.legendItem}>
-              <span className={styles.legendColor} style={{ backgroundColor: color }}></span>
-              {label}
-            </div>
-          ))}
-        </div>
+      <div className={styles.legend}>
+        <h4>Legend</h4>
+        {[
+          { label: 'Unchanged', color: '#16a34a' },
+          { label: 'Modified', color: '#f59e0b' },
+          { label: 'Removed', color: '#ef4444' },
+          ...(hasChatOverlay ? [{ label: 'Query Result', color: '#06b6d4' }] : []),
+        ].map(({ label, color }) => (
+          <div key={label} className={styles.legendItem}>
+            <span className={styles.legendColor} style={{ backgroundColor: color }}></span>
+            {label}
+          </div>
+        ))}
+      </div>
 
       <div className={styles.featureCount}>
-        {(hasClassifiedData ? buildingsGeoData.features.length : geoData.features?.length) || 0} features loaded
+        {(hasClassifiedData ? buildingsGeoData.features.length : geoData.features?.length) || 0} features
+        {hasChatOverlay && ` · ${chatOverlay.features.length} query results`}
       </div>
     </div>
   );

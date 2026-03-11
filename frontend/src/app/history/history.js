@@ -91,10 +91,6 @@ export default function HistoryPage() {
 
                 {expandedId === s.id && (
                   <div className={styles.cardBody}>
-                    <div className={styles.detail}>
-                      <strong>File:</strong> {s.filename || 'N/A'}
-                    </div>
-
                     {s.steps && (
                       <div className={styles.workflow}>
                         <h4 className={styles.workflowTitle}>Workflow</h4>

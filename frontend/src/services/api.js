@@ -54,4 +54,18 @@ export async function getClassificationResults(sessionId, params = {}) {
   return res.json();
 }
 
+/**
+ * Send a natural language query to the LLM-powered chat endpoint.
+ * @param {string} message - User's question
+ * @param {string} sessionId - Current upload session ID
+ * @returns {Promise<{explanation, sql, map_filter, row_count, geojson, results, is_aggregate}>}
+ */
+export async function chatQuery(message, sessionId = null) {
+  const res = await api.post('/api/chat/', {
+    message,
+    session_id: sessionId,
+  });
+  return res.data;
+}
+
 export default api;

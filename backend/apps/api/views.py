@@ -36,6 +36,8 @@ from apps.geo.ingest import ingest_geodataframe_to_postgis
 from .models import AnalysisSession
 from .serializers import AnalysisSessionSerializer
 
+from apps.api.chat import chat_query
+
 logger = logging.getLogger(__name__)
 
 
@@ -392,4 +394,25 @@ class ClassificationResultsView(APIView):
             "summary": summary,
             "features": features,
         })
+
+class ChatQueryView(APIView):
+
+    def post(self, request):
+        message = request.data.get("message", "").strip()
+        session_id = request.data.get("session_id")
+
+        if not message:
+            return Response(
+                {"error": "message is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not os.getenv("GEMINI_API_KEY"):
+            return Response(
+                {"error": "GEMINI_API_KEY not configured. Get one at https://aistudio.google.com/apikey"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        result = chat_query(message, session_id)
+        return Response(result)
 

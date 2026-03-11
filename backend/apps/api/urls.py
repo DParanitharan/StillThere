@@ -14,6 +14,7 @@ from .views import (
     ClassificationProgressView,
     AnalysisSessionListView,
     ClassificationResultsView,
+    ChatQueryView
 )
 
 urlpatterns = [
@@ -28,4 +29,5 @@ urlpatterns = [
     path('progress/<str:session_id>/', ClassificationProgressView.as_view(), name='classification-progress'),
     path('sessions/', AnalysisSessionListView.as_view(), name='analysis-session-list'),
     path("classification/<str:session_id>/", ClassificationResultsView.as_view(), name="classification-results"),
+    path("chat/", ChatQueryView.as_view(), name="chat-query"),
 ]
