@@ -1,8 +1,8 @@
 "use client";
 
-import api from "@/services/api";
 import { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
+import { uploadShapefile } from "@/services/api";
 import styles from "./FileUpload.module.css";
 
 export default function FileUpload({ onUpload }) {
@@ -25,19 +25,14 @@ export default function FileUpload({ onUpload }) {
       setFileName(file.name);
 
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const response = await api.post("/api/upload/", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-
-        onUpload(file, response.data.geojson, response.data.session_id);
+        const data = await uploadShapefile(file);
+        console.log("Upload response data:", data);
+        if (onUpload) {
+          onUpload(data);
+        }
       } catch (err) {
         console.error("Upload error:", err);
-        setError(
-          err?.response?.data?.error || "Upload failed. Please try again.",
-        );
+        setError(err?.message || "Upload failed. Please try again.");
       } finally {
         setUploading(false);
       }
@@ -72,14 +67,14 @@ export default function FileUpload({ onUpload }) {
           <p>Uploading...</p>
         ) : (
           <>
-            <span className={styles.uploadIcon}>📁</span>
+            <span className={styles.uploadIcon}>Upload</span>
             <p>Drag & drop a ZIP file here</p>
             <p className={styles.subtext}>or click to browse</p>
           </>
         )}
       </div>
       {fileName && !error && (
-        <div className={styles.fileInfo}>✓ {fileName}</div>
+        <div className={styles.fileInfo}>{fileName}</div>
       )}
       {error && <p className={styles.error}>{error}</p>}
       <p className={styles.hint}>

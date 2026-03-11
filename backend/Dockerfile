@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgeos-dev \
     pkg-config \
     postgresql-client \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
