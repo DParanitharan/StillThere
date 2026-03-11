@@ -9,7 +9,9 @@ import zipfile
 
 import geopandas as gpd
 from pathlib import Path
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404,render, redirect
+from django.contrib.auth import authenticate, login, logout
+from django.contrib import messages
 from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -35,6 +37,24 @@ from .models import AnalysisSession
 from .serializers import AnalysisSessionSerializer
 
 logger = logging.getLogger(__name__)
+
+class LoginView(APIView):
+    authentication_classes = []  # allow unauthenticated
+    permission_classes = []
+
+    def post(self, request):
+        username = request.data.get("username")
+        password = request.data.get("password")
+
+        if not username or not password:
+            return Response({"error": "Missing username/password"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = authenticate(request, username=username, password=password)
+        if user is None:
+            return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        login(request, user)  # sets session cookie
+        return Response({"ok": True, "username": user.username})
 
 
 class UploadProcessingError(Exception):
