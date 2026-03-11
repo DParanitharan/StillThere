@@ -3,13 +3,23 @@
 import { useEffect, useState } from 'react';
 import styles from './MapView.module.css';
 
+const SG_BOUNDS = [
+  [1.15, 103.58], // southwest (lat, lng)
+  [1.48, 104.10], // northeast (lat, lng)
+];
+
 function FlyTo({ searchPoint, useMap }) {
   const map = useMap();
 
   useEffect(() => {
     if (!searchPoint) return;
+
+    if (searchPoint.label === "Singapore") {
+      map.fitBounds(SG_BOUNDS, { padding: [30, 30], duration: 0.8 });
+    } else {
     map.flyTo([searchPoint.lat, searchPoint.lng], 16, { duration: 0.8 });
-  }, [searchPoint, map]);
+  }
+}, [searchPoint, map]);
 
   return null;
 }
@@ -19,6 +29,8 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
   const [showSatellite, setShowSatellite] = useState(false);
 
   useEffect(() => {
+    if (!geoData && !searchPoint) return;
+
     const loadMap = async () => {
       const L = await import('leaflet');
       const { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } = await import('react-leaflet');
@@ -33,7 +45,7 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
       setMapComponents({ MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap, L });
     };
     loadMap();
-  }, []);
+  }, [geoData, searchPoint]);
 
   const getInputStyle = () => ({
     color: '#3388ff', weight: 2, fillColor: '#3388ff', fillOpacity: 0.15,
@@ -111,7 +123,7 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
     return [(minLat + maxLat) / 2, (minLng + maxLng) / 2];
   };
 
-  if (!geoData) {
+  if (!geoData && !searchPoint) {
     return (
       <div className={styles.placeholder}>
         <div className={styles.placeholderContent}>
@@ -149,7 +161,7 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
   }
 
   const { MapContainer, TileLayer, GeoJSON, Marker, Popup, useMap } = MapComponents;
-
+  const center = searchPoint ? [searchPoint.lat, searchPoint.lng] : getCenter(geoData);
   const hasClassifiedData = buildingsGeoData?.features?.length > 0;
   const inputKey = geoData ? `input-${geoData.features?.length}` : 'none';
   const buildingsKey = buildingsGeoData ? `bld-${buildingsGeoData.features?.length}-${buildingsGeoData.features?.[0]?.properties?.status}` : 'none';
@@ -231,7 +243,10 @@ export default function MapView({ geoData, buildingsGeoData, analysisResult, sea
         </div>
 
       <div className={styles.featureCount}>
-        {(hasClassifiedData ? buildingsGeoData.features.length : geoData.features?.length) || 0} features loaded
+        {(hasClassifiedData
+          ? (buildingsGeoData?.features?.length ?? 0)
+          : (geoData?.features?.length ?? 0)
+        )} features loaded
       </div>
     </div>
   );
