@@ -13,6 +13,7 @@ from shapely.geometry import shape
 from shapely.ops import transform
 from rasterio.transform import from_bounds
 from rasterio.features import shapes as rasterio_shapes
+from apps.geo.persist_results import persist_classification_results
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -324,7 +325,7 @@ def classify_buildings(input_gdf, output_dir, zoom=19, session_id=None):
         _active_progress[session_id] = progress
 
     try:
-        return _classify_buildings_inner(input_gdf, output_dir, zoom, progress)
+        return _classify_buildings_inner(session_id, input_gdf, output_dir, zoom, progress)
     finally:
         # Mark complete
         progress.set_phase('complete', 'Classification finished')
@@ -337,7 +338,7 @@ def classify_buildings(input_gdf, output_dir, zoom=19, session_id=None):
             threading.Thread(target=_cleanup, daemon=True).start()
 
 
-def _classify_buildings_inner(input_gdf, output_dir, zoom, progress):
+def _classify_buildings_inner(upload_session, input_gdf, output_dir, zoom, progress):
     # ── Read thresholds ─────────────────────────────────────────────────
     threshold_removed   = CLASSIFY_THRESHOLDS['threshold_removed']
     iou_unchanged       = CLASSIFY_THRESHOLDS['iou_unchanged']
@@ -575,16 +576,29 @@ def _classify_buildings_inner(input_gdf, output_dir, zoom, progress):
             'metrics': data['metrics'],
         })
 
-    result_gdf = gpd.GeoDataFrame(rows, crs='EPSG:4326')
+    classified_gdf = gpd.GeoDataFrame(rows, crs='EPSG:4326')
 
-    counts = result_gdf['status'].value_counts()
+    counts = classified_gdf['status'].value_counts()
     progress.log(f"Final: {counts.to_dict()}")
 
     out_path = os.path.join(output_dir, 'buildings_classified.geojson')
-    result_gdf.to_file(out_path, driver='GeoJSON')
+    classified_gdf.to_file(out_path, driver='GeoJSON')
     progress.log(f"Saved to {out_path}")
 
-    return result_gdf
+    logger.info("classified_gdf columns: %s", list(classified_gdf.columns))
+    logger.info("classified_gdf status sample:\n%s", classified_gdf[['status']].head())
+
+    try:
+        count = persist_classification_results(
+            classified_gdf=classified_gdf,
+            upload_session=upload_session,
+            analysis_session=getattr(upload_session, '_analysis_session', None),
+        )
+        logger.info("Persisted %d classified buildings to PostGIS", count)
+    except Exception as exc:
+        logger.error("Failed to persist classification results: %s", exc, exc_info=True)
+
+    return classified_gdf
 
 
 def to_2d_geom(g):
