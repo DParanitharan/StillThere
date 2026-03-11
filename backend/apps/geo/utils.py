@@ -61,11 +61,15 @@ CLASSIFY_THRESHOLDS = {
     "green_ratio_high": _env_float("CLASSIFY_GREEN_RATIO_HIGH", 0.42),
     "saturation_low": _env_float("CLASSIFY_SATURATION_LOW", 0.30),
     "saturation_high": _env_float("CLASSIFY_SATURATION_HIGH", 0.50),
+    # Max buildings sent through SAM; remainder use pixel-only fallback.
+    # Lower values = faster; raise for higher shape-accuracy on large datasets.
+    "sam_max_buildings": _env_int("CLASSIFY_SAM_MAX_BUILDINGS", 200),
 }
 
 logger.info("Classification thresholds: %s", CLASSIFY_THRESHOLDS)
 
 _TILE_DOWNLOAD_MAX_RETRIES = _env_int("CLASSIFY_TILE_DOWNLOAD_MAX_RETRIES", 3)
+_TILE_DOWNLOAD_TIMEOUT = _env_int("CLASSIFY_TILE_DOWNLOAD_TIMEOUT", 15)
 
 # Cached SAM predictor — loaded once per worker process.
 _sam_predictor = None
@@ -122,6 +126,7 @@ class ProgressTracker:
     def set_progress(self, current, total, message=None):
         self.phase_progress = current / total if total > 0 else 0
         self.processed_buildings = current
+        self.phase_total = total
         if message:
             self.log(message)
         else:
@@ -129,17 +134,23 @@ class ProgressTracker:
 
     def to_dict(self):
         elapsed = round(time.time() - self.start_time, 1)
+        phase_elapsed = round(time.time() - self.phase_start_time, 1)
+
+        # ETA is derived from current-phase timing only, so Phase 2
+        # (capped at sam_max_buildings, not total_buildings) gives an
+        # accurate estimate rather than projecting from the full count.
         eta = None
-        if self.processed_buildings > 0 and self.total_buildings > 0:
-            rate = elapsed / self.processed_buildings
-            remaining = self.total_buildings - self.processed_buildings
-            eta = round(rate * remaining, 1)
+        phase_total = getattr(self, "phase_total", self.total_buildings)
+        if self.phase_progress > 0.01:
+            eta = round(
+                phase_elapsed / self.phase_progress * (1.0 - self.phase_progress), 1
+            )
 
         return {
             "phase": self.phase,
             "progress": round(self.phase_progress * 100, 1),
             "processed": self.processed_buildings,
-            "total": self.total_buildings,
+            "total": phase_total,
             "elapsed": elapsed,
             "eta_seconds": eta,
             "counts": dict(self.counts),
@@ -171,7 +182,7 @@ def _download_google_tile(center_lat, center_lng, zoom, size, api_key):
     last_exc = None
     for attempt in range(1, _TILE_DOWNLOAD_MAX_RETRIES + 1):
         try:
-            resp = requests.get(url, timeout=30)
+            resp = requests.get(url, timeout=_TILE_DOWNLOAD_TIMEOUT)
             if resp.status_code != 200:
                 raise RuntimeError(f"Google Maps API error: {resp.status_code}")
             return np.array(Image.open(io.BytesIO(resp.content)).convert("RGB"))
@@ -296,6 +307,11 @@ def _load_sam_predictor():
 
     import torch
     from segment_anything import sam_model_registry, SamPredictor
+
+    # Use all available CPU cores for PyTorch operations (default on Linux
+    # Docker is often 1, which severely underutilises multi-core machines).
+    torch.set_num_threads(os.cpu_count() or 4)
+    logger.info("SAM using %d CPU threads", torch.get_num_threads())
 
     base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     for model_type, filename in [
@@ -471,7 +487,7 @@ def _classify_buildings_inner(input_gdf, output_dir, zoom, progress):
                     }
                     progress.counts["removed"] += 1
                 else:
-                    sam_candidates.append((bld_idx, row, tile_idx))
+                    sam_candidates.append((bld_idx, row, tile_idx, score))
 
             total_processed += len(buildings)
             progress.set_progress(
@@ -501,6 +517,33 @@ def _classify_buildings_inner(input_gdf, output_dir, zoom, progress):
         f"{len(sam_candidates)} need SAM verification"
     )
 
+    # Sort by pixel score ascending: lowest (most ambiguous, closest to removal
+    # threshold) go through SAM first — they benefit most from shape verification.
+    sam_max = CLASSIFY_THRESHOLDS["sam_max_buildings"]
+    sam_candidates.sort(key=lambda x: x[3])
+    pixel_only_candidates = sam_candidates[sam_max:]
+    sam_candidates = sam_candidates[:sam_max]
+
+    for bld_idx, row, tile_idx, px_score in pixel_only_candidates:
+        status = "modified" if px_score >= pixel_fallback_min else "removed"
+        phase1_results[bld_idx] = {
+            "geometry": row.geometry,
+            "status": status,
+            "confidence": px_score,
+            "sam_polygon": None,
+            "iou": 0.0,
+            "metrics": json.dumps(
+                {"pixel_score": px_score, "note": "pixel-only, SAM cap reached"}
+            ),
+        }
+        progress.counts[status] += 1
+
+    if pixel_only_candidates:
+        progress.log(
+            f"SAM cap ({sam_max}): {len(pixel_only_candidates)} buildings classified "
+            f"by pixel-only fallback (raise CLASSIFY_SAM_MAX_BUILDINGS to include them)"
+        )
+
     # ── PHASE 2: SAM ────────────────────────────────────────────────────
     if sam_candidates:
         progress.set_phase("phase2_sam_loading", "Loading SAM model into memory")
@@ -513,7 +556,7 @@ def _classify_buildings_inner(input_gdf, output_dir, zoom, progress):
         )
 
         candidates_by_tile = {}
-        for bld_idx, row, tile_idx in sam_candidates:
+        for bld_idx, row, tile_idx, _score in sam_candidates:
             candidates_by_tile.setdefault(tile_idx, []).append((bld_idx, row))
 
         sam_processed = 0
