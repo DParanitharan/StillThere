@@ -8,25 +8,13 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-_SECRET_KEY_DEFAULT = "dev-secret-do-not-use-in-production"
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", _SECRET_KEY_DEFAULT)
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret")
 DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
-
-if not DEBUG and SECRET_KEY == _SECRET_KEY_DEFAULT:
-    raise RuntimeError(
-        "DJANGO_SECRET_KEY must be set to a strong random value in production."
-    )
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
-# Only set when env vars are explicitly provided (e.g. macOS Homebrew).
-# On Linux/Windows Django/GDAL locate the libraries automatically.
 # Needed by GeoDjango when dynamic library name probing misses local versions.
-_gdal = os.getenv("GDAL_LIBRARY_PATH")
-_geos = os.getenv("GEOS_LIBRARY_PATH")
-if _gdal and Path(_gdal).exists():
-    GDAL_LIBRARY_PATH = _gdal
-if _geos and Path(_geos).exists():
-    GEOS_LIBRARY_PATH = _geos
+GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH")
+GEOS_LIBRARY_PATH = os.getenv("GEOS_LIBRARY_PATH")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -89,11 +77,11 @@ ASGI_APPLICATION = "nkbp_backend.asgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.contrib.gis.db.backends.postgis",
-        "NAME": os.environ.get("POSTGRES_DB", "dsa_db"),
-        "USER": os.environ.get("POSTGRES_USER", "postgres"),
-        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "postgres"),
-        "HOST": os.environ.get("POSTGRES_HOST", "db"),
-        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        "NAME": os.getenv("DB_NAME", "nkbp"),
+        "USER": os.getenv("DB_USER", "postgres"),
+        "PASSWORD": os.getenv("DB_PASSWORD", "postgres"),
+        "HOST": os.getenv("DB_HOST", "localhost"),
+        "PORT": os.getenv("DB_PORT", "5432"),
     }
 }
 
@@ -109,21 +97,16 @@ MEDIA_ROOT = BASE_DIR / "media"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 CORS_ALLOWED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        "CORS_ALLOWED_ORIGINS", "http://localhost,http://localhost:3000,http://127.0.0.1:3000"
-    ).split(",")
-    if origin.strip()
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
 ]
-CSRF_TRUSTED_ORIGINS = [
-    origin.strip()
-    for origin in os.getenv(
-        "CORS_ALLOWED_ORIGINS", "http://localhost,http://localhost:3000,http://127.0.0.1:3000"
-    ).split(",")
-    if origin.strip()
-]
+
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ]
 }
+
+
+
+

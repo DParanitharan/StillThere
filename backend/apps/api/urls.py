@@ -1,19 +1,18 @@
 """URL routes for API endpoints."""
 
 from django.urls import path
+
 from .views import (
-    AnalysisResultsStubView,
-    AnalysisStartStubView,
-    AnalyzeChangesStubView,
-    AnalysisSessionListView,
-    BuildingExtractionView,
-    ClassificationProgressView,
-    ClassificationResultView,
-    ExportStubView,
-    GeocodeView,
-    GetOverlayView,
     HealthView,
     UploadShapefileView,
+    GetOverlayView,
+    AnalysisStartStubView,
+    AnalysisResultsStubView,
+    AnalyzeChangesStubView,
+    ExportStubView,
+    BuildingExtractionView,
+    ClassificationProgressView,
+    AnalysisSessionListView,
 )
 
 urlpatterns = [
@@ -27,6 +26,4 @@ urlpatterns = [
     path("extract-buildings/", BuildingExtractionView.as_view(), name="extract-buildings"),
     path('progress/<str:session_id>/', ClassificationProgressView.as_view(), name='classification-progress'),
     path('sessions/', AnalysisSessionListView.as_view(), name='analysis-session-list'),
-    path("geocode/", GeocodeView.as_view(), name="geocode"),
-    path( "results/<uuid:session_id>/", ClassificationResultView.as_view(), name="classification-results",),
 ]

@@ -86,6 +86,4 @@ backend/.env
 .Rhistory
 
 backend/tsxazu.geojson
-backend/*.pth
-
-Shapefile.zip
+backend/sam_vit_h_4b8939.pth
