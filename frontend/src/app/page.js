@@ -14,8 +14,7 @@ export default function LandingPage() {
     (async () => {
       try {
         const res = await fetch('/api/whoami/', { credentials: 'include' });
-        if (res.ok) router.replace('/dashboard');
-        else router.replace('/login');
+        if (!res.ok) router.replace('/login');
       } catch {
         router.replace('/login');
       }

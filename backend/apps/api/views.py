@@ -67,6 +67,14 @@ class LoginView(APIView):
         return Response({"ok": True, "username": user.username})
 
 
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        logout(request)
+        return Response({"ok": True})
+
+
 class UploadProcessingError(Exception):
     """Raised when shapefile processing fails for expected upload-related reasons."""
 

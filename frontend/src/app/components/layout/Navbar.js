@@ -2,17 +2,23 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import styles from './Navbar.module.css';
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
 
   const links = [
     { href: '/dashboard', label: 'Footprint Checker' },
     { href: '/history', label: 'Past Workflows' },
     { href: '/faq', label: 'FAQs' },
   ];
+
+  async function handleLogout() {
+    await fetch('/api/logout/', { method: 'POST', credentials: 'include' });
+    router.replace('/login');
+  }
 
   return (
     <nav className={styles.navbar}>
@@ -29,6 +35,11 @@ export default function Navbar() {
             </Link>
           </li>
         ))}
+        <li>
+          <button onClick={handleLogout} className={styles.logoutBtn}>
+            Log out
+          </button>
+        </li>
       </ul>
     </nav>
   );
