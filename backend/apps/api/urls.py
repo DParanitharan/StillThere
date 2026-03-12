@@ -16,6 +16,7 @@ from .views import (
     ClassificationResultsView,
     ChatQueryView,
     LoginView,
+    LogoutView,
     WhoAmIView,
 )
 
@@ -59,5 +60,6 @@ urlpatterns = [
     ),
     path("chat/", ChatQueryView.as_view(), name="chat-query"),
     path("login/", LoginView.as_view(), name="login"),
+    path("logout/", LogoutView.as_view(), name="logout"),
     path("whoami/", WhoAmIView.as_view(), name="whoami"),
 ]

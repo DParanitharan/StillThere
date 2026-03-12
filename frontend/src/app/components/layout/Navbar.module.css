@@ -57,3 +57,21 @@
 .signIn:hover {
   background: var(--primary-600);
 }
+
+.logoutBtn {
+  padding: 8px 22px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray-600);
+  background: transparent;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.logoutBtn:hover {
+  color: #e53e3e;
+  border-color: #e53e3e;
+  background: #fff5f5;
+}
