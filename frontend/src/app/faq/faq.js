@@ -8,42 +8,40 @@ const FAQ_DATA = [
   {
     question: 'What does this application do?',
     answer:
-      'This tool detects and classifies changes in building footprints using satellite or aerial imagery. Upload a geospatial file (GeoJSON, GeoTIFF, etc.) and the system will identify buildings that are unchanged, modified, or removed.',
+      'Upload your geospatial file, and our system compares building footprints against current Google Satellite imagery to detect changes over time. Results are displayed on an interactive map with buildings colour coded as added, removed, and modified, along with search and filter capabilities.',
+  },
+  {
+    question: 'What model powers the change detection?',
+    answer:
+      "The Footprint Change Checker uses Meta's Segment Anything Model (SAM) to detect and analyse changes in building footprints.",
   },
   {
     question: 'What file formats are supported for upload?',
     answer:
-      'We currently support GeoJSON, GeoTIFF (.tif), and Shapefiles (.shp with accompanying .dbf/.shx). Make sure your file contains valid geospatial data with coordinate reference information.',
+      'We accept .zip, .shp, .shx, .dbf, and .prj files. These are standard GIS file formats used for geospatial data.',
   },
   {
-    question: 'How does the building classification work?',
+    question: 'How do I use the search and filter features?',
     answer:
-      'After uploading imagery, the backend uses the Segment Anything Model (SAM) to detect building footprints. These detected footprints are then compared against known building data to classify each as unchanged, modified, or removed.',
+      'After analysis, use the search bar on the map to find specific locations. The filter tab allows you to narrow results based on various criteria.',
   },
   {
-    question: 'What do the classification statuses mean?',
+    question: 'Can I save my analysis results?',
     answer:
-      'Unchanged (green): The building footprint matches the reference data. Modified (amber): The footprint geometry has changed significantly. Removed (red): A building in the reference data was not detected in the new imagery.',
+      'Yes! After completing an analysis, click the \'Save Workflow\' button to save it. You can access all saved workflows from the \'Past Workflows\' page.',
   },
   {
-    question: 'How accurate are the results?',
+    question: 'How do I use the chatbot feature?',
     answer:
-      'Accuracy depends on imagery resolution, cloud cover, and the quality of reference data. The model works best with high-resolution satellite imagery (< 1 m/pixel). Always review results manually for critical decision-making.',
+      'Click the chatbot icon on the bottom-left corner of any page to open it. You can ask customised queries about your analysis results, for example: "Show all buildings within 500m that have been modified" or "How many buildings were added in this area?"',
   },
   {
-    question: 'Can I search for a specific address on the map?',
+    question: 'Is my data secure?',
     answer:
-      'Yes. Use the search bar in the dashboard sidebar to enter an address. The map will pan to that location and place a marker. This uses a geocoding API to resolve addresses to coordinates.',
+      'Yes, all uploaded files are processed securely and stored with encryption. We follow industry-standard security practices.',
   },
-  {
-    question: 'Where is my analysis history stored?',
-    answer:
-      'Each analysis session is stored on the server with its session ID, uploaded file, and classification results. You can view past sessions on the History page.',
-  },
-  {
-    question: 'How do I use the chat assistant?',
-    answer:
-      'Click the chat icon in the bottom-right corner of the dashboard. You can ask the assistant questions about your analysis results, building change statistics, or how to use the tool.',
+  {question: 'How do I get help?',
+    answer: 'You can use the AI chatbot available on every page (bottom-left corner) or contact our support team through the Help section.',
   },
 ];
 
