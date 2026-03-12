@@ -13,6 +13,8 @@ from .views import (
     BuildingExtractionView,
     ClassificationProgressView,
     AnalysisSessionListView,
+    LoginView,
+    WhoAmIView
 )
 
 urlpatterns = [
@@ -26,4 +28,6 @@ urlpatterns = [
     path("extract-buildings/", BuildingExtractionView.as_view(), name="extract-buildings"),
     path('progress/<str:session_id>/', ClassificationProgressView.as_view(), name='classification-progress'),
     path('sessions/', AnalysisSessionListView.as_view(), name='analysis-session-list'),
+    path('login/', LoginView.as_view(), name='login'),
+    path("whoami/", WhoAmIView.as_view(), name="whoami")
 ]
