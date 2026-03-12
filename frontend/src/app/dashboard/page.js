@@ -21,6 +21,7 @@ export default function DashboardPage() {
   const [sessionTitle, setSessionTitle] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [chatGeoJson, setChatGeoJson] = useState(null);
 
   const summary = useMemo(() => {
     if (!buildingsGeoJSON?.features) return null;
@@ -54,6 +55,7 @@ export default function DashboardPage() {
     }
     setSessionId(sid);
     setSaveSuccess(false);
+    setChatGeoJson(null);
     setBuildingsGeoJSON(null);
     try {
       setIsExtracting(true);
@@ -134,6 +136,15 @@ export default function DashboardPage() {
     }
   };
 
+  const handleChatMapFilter = (filterType) => {
+    console.log("Chat applied map filter:", filterType);
+    setStatusFilter(filterType);
+  };
+
+  const handleChatGeoJson = (geojson) => {
+    setChatGeoJson(geojson);
+  };
+
   return (
     <div className={styles.page}>
       <Navbar />
@@ -164,7 +175,10 @@ export default function DashboardPage() {
                 {["all", "unchanged", "modified", "removed"].map((s) => (
                   <button
                     key={s}
-                    onClick={() => setStatusFilter(s)}
+                    onClick={() => {
+                      setStatusFilter(s);
+                      setChatGeoJson(null);
+                    }}
                     className={`${styles.filterBtn} ${statusFilter === s ? styles.filterActive : ""}`}
                   >
                     {s === "all"
@@ -259,10 +273,16 @@ export default function DashboardPage() {
             geoData={geoData}
             buildingsGeoData={filteredGeoJSON}
             searchPoint={searchPoint}
+            chatOverlay={chatGeoJson}
           />
         </div>
       </div>
-      <ChatWidget />
+
+      <ChatWidget
+        sessionId={sessionId}
+        onMapFilter={handleChatMapFilter}
+        onGeoJsonOverlay={handleChatGeoJson}
+      />
     </div>
   );
 }

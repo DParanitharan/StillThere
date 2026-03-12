@@ -31,7 +31,7 @@ export default function LandingPage() {
         <h1 className={styles.title}>
           Detect changes in footprint with
           <br />
-          <span className={styles.highlight}>GeoChange</span>
+          <span className={styles.highlight}>StillThere?</span>
         </h1>
 
         <p className={styles.subtitle}>

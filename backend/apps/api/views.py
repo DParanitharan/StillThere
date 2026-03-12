@@ -7,6 +7,7 @@ import threading
 import uuid
 import requests
 import zipfile
+import json
 
 import geopandas as gpd
 from pathlib import Path
@@ -28,13 +29,16 @@ from apps.api.serializers import (
     UploadRequestSerializer,
     UploadResponseSerializer,
 )
-from apps.geo.models import UploadSession
+from apps.geo.models import UploadSession, ClassifiedBuilding
 from apps.geo.utils import (
     classify_buildings,
     get_progress,
 )
+from apps.geo.ingest import ingest_geodataframe_to_postgis
 from .models import AnalysisSession
 from .serializers import AnalysisSessionSerializer
+
+from apps.api.chat import chat_query
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +71,7 @@ class UploadProcessingError(Exception):
     """Raised when shapefile processing fails for expected upload-related reasons."""
 
 
-def _create_upload_session_from_zip(uploaded_file) -> UploadSession:
+def _create_upload_session_from_zip(uploaded_file) -> "UploadSession":
     """Create and persist an upload session from a zipped shapefile upload."""
     session = UploadSession.objects.create(
         source_zip=uploaded_file,
@@ -99,6 +103,14 @@ def _create_upload_session_from_zip(uploaded_file) -> UploadSession:
         session.building_count = int(len(gdf))
         session.footprints_geojson = gdf.__geo_interface__
         session.save(update_fields=["crs", "building_count", "footprints_geojson"])
+        # ── persist individual features to PostGIS ──────────
+        try:
+            count = ingest_geodataframe_to_postgis(gdf, session)
+            logger.info("Saved %d features to PostGIS for session %s", count, session.id)
+        except Exception as exc:
+            logger.error("PostGIS ingest failed for session %s: %s", session.id, exc)
+            # Non-fatal: the session still has the GeoJSON blob,
+            # but spatial queries won't work for this upload.
         return session
     except (OSError, RuntimeError, ValueError) as exc:
         session.delete()
@@ -355,3 +367,93 @@ class AnalysisSessionListView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ClassificationResultsView(APIView):
+    """
+    GET /api/classification/<session_id>/
+    Returns persisted classification results from PostGIS.
+
+    Query params:
+        ?classification=removed      — filter by type
+        ?bbox=140.85,36.90,140.95,36.97  — spatial filter
+    """
+
+    def get(self, request, session_id):
+        qs = ClassifiedBuilding.objects.filter(upload_session_id=session_id)
+
+        # Filter by classification type
+        classification = request.query_params.get("classification")
+        if classification:
+            qs = qs.filter(classification=classification)
+
+        # Spatial bounding box filter
+        bbox = request.query_params.get("bbox")
+        if bbox:
+            try:
+                from django.contrib.gis.geos import Polygon as GeosPolygon
+                coords = [float(c) for c in bbox.split(",")]
+                box = GeosPolygon.from_bbox(coords)
+                box.srid = 4326
+                qs = qs.filter(input_geom__intersects=box)
+            except (ValueError, IndexError):
+                return Response(
+                    {"error": "bbox must be xmin,ymin,xmax,ymax"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Build GeoJSON FeatureCollection
+        features = []
+        for b in qs:
+            feature = {
+                "type": "Feature",
+                "geometry": json.loads(b.input_geom.geojson),
+                "properties": {
+                    "id": b.id,
+                    "feature_index": b.feature_index,
+                    "classification": b.classification,
+                    "confidence": b.confidence,
+                    "iou_score": b.iou_score,
+                    "pixel_score": b.pixel_score,
+                    **b.properties,
+                },
+            }
+            if b.detected_geom:
+                feature["properties"]["detected_geometry"] = json.loads(b.detected_geom.geojson)
+            features.append(feature)
+
+        # Summary stats
+        from django.db.models import Count
+        summary = dict(
+            qs.values("classification")
+              .annotate(count=Count("id"))
+              .values_list("classification", "count")
+        )
+
+        return Response({
+            "type": "FeatureCollection",
+            "count": qs.count(),
+            "summary": summary,
+            "features": features,
+        })
+
+class ChatQueryView(APIView):
+
+    def post(self, request):
+        message = request.data.get("message", "").strip()
+        session_id = request.data.get("session_id")
+
+        if not message:
+            return Response(
+                {"error": "message is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not os.getenv("GEMINI_API_KEY"):
+            return Response(
+                {"error": "GEMINI_API_KEY not configured. Get one at https://aistudio.google.com/apikey"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        result = chat_query(message, session_id)
+        return Response(result)

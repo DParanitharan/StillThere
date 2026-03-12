@@ -39,4 +39,33 @@ export async function pollProgress(sessionId) {
   return res.json();
 }
 
+/**
+ * @param {string} sessionId - Upload session ID
+ * @param {object} params - Optional filters: { classification, bbox }
+ */
+export async function getClassificationResults(sessionId, params = {}) {
+  const query = new URLSearchParams();
+  if (params.classification) query.set("classification", params.classification);
+  if (params.bbox) query.set("bbox", params.bbox);
+
+  const url = `/api/classification/${sessionId}/${query.toString() ? "?" + query : ""}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch classification: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Send a natural language query to the LLM-powered chat endpoint.
+ * @param {string} message - User's question
+ * @param {string} sessionId - Current upload session ID
+ * @returns {Promise<{explanation, sql, map_filter, row_count, geojson, results, is_aggregate}>}
+ */
+export async function chatQuery(message, sessionId = null) {
+  const res = await api.post("/api/chat/", {
+    message,
+    session_id: sessionId,
+  });
+  return res.data;
+}
+
 export default api;
