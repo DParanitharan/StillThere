@@ -13,8 +13,9 @@ DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 # Needed by GeoDjango when dynamic library name probing misses local versions.
-GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH")
-GEOS_LIBRARY_PATH = os.getenv("GEOS_LIBRARY_PATH")
+# Empty string (set in Docker) falls through to None so GeoDjango auto-detects.
+GDAL_LIBRARY_PATH = os.getenv("GDAL_LIBRARY_PATH") or None
+GEOS_LIBRARY_PATH = os.getenv("GEOS_LIBRARY_PATH") or None
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -96,10 +97,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000"
-]
+CORS_ALLOWED_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -109,7 +107,3 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.JSONRenderer",
     ],
 }
-
-
-
-
