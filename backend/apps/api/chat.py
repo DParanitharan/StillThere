@@ -96,6 +96,8 @@ Respond ONLY with a JSON object in this exact format (no markdown, no code fence
 
 MODELS = [
     "gemini-2.5-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-8b",
 ]
 
 MAX_RETRIES = 3
@@ -137,11 +139,17 @@ def generate_sql_from_prompt(user_message: str, session_id: str = None) -> dict:
                     content = re.sub(r"\s*```$", "", content)
 
                 result = json.loads(content)
-                logger.info("Gemini query succeeded with model=%s attempt=%d", model_name, attempt + 1)
+                logger.info(
+                    "Gemini query succeeded with model=%s attempt=%d",
+                    model_name,
+                    attempt + 1,
+                )
                 return result
 
             except json.JSONDecodeError as e:
-                logger.error("Failed to parse Gemini response as JSON: %s\nRaw: %s", e, content)
+                logger.error(
+                    "Failed to parse Gemini response as JSON: %s\nRaw: %s", e, content
+                )
                 return {
                     "explanation": "Failed to parse LLM response. Please rephrase your question.",
                     "sql": None,
@@ -155,19 +163,38 @@ def generate_sql_from_prompt(user_message: str, session_id: str = None) -> dict:
 
                 # Check if it's a rate limit error
                 if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                    delay_match = re.search(r"retry in ([\d.]+)s", error_str, re.IGNORECASE)
-                    delay = float(delay_match.group(1)) if delay_match else RETRY_BASE_DELAY * (2 ** attempt)
-                    delay = min(delay, 60)  # cap at 60s
+                    # Daily quota cannot recover within a session — skip to next model
+                    if "PerDay" in error_str or "per_day" in error_str.lower():
+                        logger.warning(
+                            "Daily quota exhausted for %s, skipping to next model.",
+                            model_name,
+                        )
+                        break
+
+                    delay_match = re.search(
+                        r"retry in ([\d.]+)s", error_str, re.IGNORECASE
+                    )
+                    delay = (
+                        float(delay_match.group(1))
+                        if delay_match
+                        else RETRY_BASE_DELAY * (2**attempt)
+                    )
+                    delay = min(delay, 30)  # cap at 30s to avoid proxy timeouts
 
                     logger.warning(
                         "Rate limited on %s (attempt %d/%d). Retrying in %.1fs...",
-                        model_name, attempt + 1, MAX_RETRIES, delay,
+                        model_name,
+                        attempt + 1,
+                        MAX_RETRIES,
+                        delay,
                     )
                     time.sleep(delay)
                     continue
                 else:
                     # Non-rate-limit error — don't retry
-                    logger.error("Gemini call failed (non-retryable): %s", e, exc_info=True)
+                    logger.error(
+                        "Gemini call failed (non-retryable): %s", e, exc_info=True
+                    )
                     return {
                         "explanation": f"Failed to generate query: {str(e)}",
                         "sql": None,
@@ -176,7 +203,9 @@ def generate_sql_from_prompt(user_message: str, session_id: str = None) -> dict:
                     }
 
         # All retries exhausted for this model, try next model
-        logger.warning("All retries exhausted for model %s, trying next model...", model_name)
+        logger.warning(
+            "All retries exhausted for model %s, trying next model...", model_name
+        )
 
     # All models exhausted
     logger.error("All Gemini models exhausted. Last error: %s", last_error)
@@ -199,13 +228,25 @@ def validate_sql(sql: str) -> tuple[bool, str]:
     sql_upper = sql.upper().strip()
 
     forbidden = [
-        "INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "TRUNCATE",
-        "CREATE", "GRANT", "REVOKE", "EXEC", "EXECUTE", "COPY",
-        "\\\\", "--", "/*",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "DROP",
+        "ALTER",
+        "TRUNCATE",
+        "CREATE",
+        "GRANT",
+        "REVOKE",
+        "EXEC",
+        "EXECUTE",
+        "COPY",
+        "\\\\",
+        "--",
+        "/*",
     ]
 
     for keyword in forbidden:
-        pattern = r'(?<![A-Z_])' + re.escape(keyword) + r'(?![A-Z_])'
+        pattern = r"(?<![A-Z_])" + re.escape(keyword) + r"(?![A-Z_])"
         if re.search(pattern, sql_upper):
             return False, f"Forbidden keyword detected: {keyword}"
 
@@ -244,8 +285,11 @@ def rows_to_geojson(rows: list[dict]) -> dict:
     """
     Convert query result rows into a GeoJSON FeatureCollection.
     """
-    geojson_keys = [k for k in (rows[0].keys() if rows else [])
-                    if "geojson" in k.lower() or "st_asgeojson" in k.lower()]
+    geojson_keys = [
+        k
+        for k in (rows[0].keys() if rows else [])
+        if "geojson" in k.lower() or "st_asgeojson" in k.lower()
+    ]
 
     features = []
     for row in rows:
@@ -267,17 +311,21 @@ def rows_to_geojson(rows: list[dict]) -> dict:
                     props[key] = str(val)
 
         if geom:
-            features.append({
-                "type": "Feature",
-                "geometry": geom,
-                "properties": props,
-            })
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": geom,
+                    "properties": props,
+                }
+            )
         else:
-            features.append({
-                "type": "Feature",
-                "geometry": None,
-                "properties": props,
-            })
+            features.append(
+                {
+                    "type": "Feature",
+                    "geometry": None,
+                    "properties": props,
+                }
+            )
 
     return {
         "type": "FeatureCollection",
