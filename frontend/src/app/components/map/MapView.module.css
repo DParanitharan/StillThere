@@ -108,7 +108,7 @@
 /* Legend */
 .legend {
   position: absolute;
-  bottom: 36px;
+  top: 70px;
   right: 10px;
   z-index: 1000;
   background: #fff;

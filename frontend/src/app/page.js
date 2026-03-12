@@ -1,11 +1,26 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/app/components/layout/Navbar';
 import ChatWidget from '@/app/components/chat/ChatWidget';
 import styles from './page.module.css';
 
 export default function LandingPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/whoami/', { credentials: 'include' });
+        if (res.ok) router.replace('/dashboard');
+        else router.replace('/login');
+      } catch {
+        router.replace('/login');
+      }
+    })();
+  }, [router]);
   return (
     <div className={styles.page}>
       <Navbar />
@@ -16,7 +31,7 @@ export default function LandingPage() {
         <h1 className={styles.title}>
           Detect changes in footprint with
           <br />
-          <span className={styles.highlight}>GeoChange</span>
+          <span className={styles.highlight}>StillThere?</span>
         </h1>
 
         <p className={styles.subtitle}>

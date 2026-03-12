@@ -1,6 +1,6 @@
 .fab {
   position: fixed;
-  bottom: 165px;
+  bottom: 40px;
   right: 24px;
   width: 50px;
   height: 50px;
@@ -21,7 +21,7 @@
 
 .tooltip {
   position: fixed;
-  bottom: 220px;
+  bottom: 100px;
   right: 18px;
   background: var(--primary-500);
   color: #fff;
@@ -39,7 +39,7 @@
   bottom: 102px;
   right: 24px;
   width: 340px;
-  max-height: 440px;
+  max-height: 800px;
   background: #fff;
   border-radius: var(--radius-lg);
   box-shadow: 0 12px 40px rgba(0,0,0,0.18);
@@ -56,8 +56,8 @@
 
 .header {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   padding: 12px 16px;
   background: var(--primary-500);
   color: #fff;
@@ -73,6 +73,28 @@
   opacity: 0.8;
 }
 .close:hover { opacity: 1; }
+
+.header div {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.clearBtn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.clearBtn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
 
 .msgs {
   flex: 1;
@@ -134,3 +156,158 @@
   flex-shrink: 0;
 }
 .sendBtn:hover { background: var(--accent-500); }
+
+.msgText {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+/* Example query buttons */
+.examples {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.exampleBtn {
+  background: rgba(43, 94, 167, 0.08);
+  border: 1px solid rgba(43, 94, 167, 0.15);
+  color: var(--primary-600, #2b5ea7);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm, 6px);
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.exampleBtn:hover {
+  background: rgba(43, 94, 167, 0.15);
+  border-color: rgba(43, 94, 167, 0.3);
+}
+
+/* Row count & metadata */
+.meta {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--gray-500, #6b7280);
+}
+
+/* Classification filter badges */
+.badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge.unchanged {
+  background: rgba(76, 175, 80, 0.15);
+  color: #2e7d32;
+}
+
+.badge.modified {
+  background: rgba(255, 193, 7, 0.15);
+  color: #f57f17;
+}
+
+.badge.removed {
+  background: rgba(244, 67, 54, 0.15);
+  color: #c62828;
+}
+
+.badge.new {
+  background: rgba(33, 150, 243, 0.15);
+  color: #1565c0;
+}
+
+/* Aggregate results table */
+.tableWrap {
+  margin-top: 8px;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.table th {
+  text-align: left;
+  padding: 4px 8px;
+  color: var(--gray-500, #6b7280);
+  border-bottom: 1px solid var(--gray-200, #e5e7eb);
+  font-weight: 600;
+}
+
+.table td {
+  padding: 4px 8px;
+  color: var(--gray-700, #374151);
+}
+
+.table tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* Collapsible SQL */
+.sqlDetails {
+  margin-top: 8px;
+}
+
+.sqlDetails summary {
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--gray-400, #9ca3af);
+}
+
+.sqlCode {
+  margin-top: 4px;
+  padding: 8px;
+  background: var(--gray-100, #f3f4f6);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 10px;
+  color: var(--gray-600, #4b5563);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: 'Courier New', monospace;
+}
+
+/* Typing indicator */
+.typing {
+  display: flex;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.typing span {
+  width: 6px;
+  height: 6px;
+  background: var(--gray-400, #9ca3af);
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.typing span:nth-child(1) { animation-delay: -0.32s; }
+.typing span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* Disabled state */
+.sendBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.chatInput:disabled {
+  opacity: 0.6;
+  background: var(--gray-50, #f9fafb);
+}
