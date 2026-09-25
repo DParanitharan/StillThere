@@ -18,7 +18,7 @@
 # >>> Replace the host below with your real Render backend URL, then redeploy. <<<
 [[redirects]]
   from = "/api/*"
-  to = "https://stillthere-backend.onrender.com/api/:splat"
+  to = "https://stillthere-backend-ehq3.onrender.com/api/:splat"
   status = 200
   force = true
 
