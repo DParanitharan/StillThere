@@ -1,0 +1,15 @@
+# Slim runtime dependencies for the public demo deployment.
+# Excludes the heavy SAM/geo stack (torch, torchvision, segment-anything,
+# geopandas, rasterio, fiona, shapely) because the live classification pipeline
+# is disabled in demo mode (DEMO_MODE=1). GeoDjango's spatial queries use the
+# GDAL/GEOS *system* libraries installed in the Docker image, not these packages.
+Django==5.0.7
+djangorestframework==3.15.2
+django-cors-headers==4.4.0
+python-dotenv==1.0.1
+psycopg[binary]==3.2.1
+requests==2.32.5
+numpy>=1.24
+google-genai==1.66.0
+gunicorn==23.0.0
+whitenoise==6.8.2

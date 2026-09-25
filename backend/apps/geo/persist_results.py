@@ -2,13 +2,20 @@
 Persist classification results from classify_buildings() into PostGIS.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 
-import geopandas as gpd
 from django.contrib.gis.geos import GEOSGeometry
-from shapely.ops import transform as shapely_transform
-from shapely import wkt as shapely_wkt
+
+# Optional at import time so the backend boots without the geo stack (demo mode).
+try:
+    import geopandas as gpd
+    from shapely.ops import transform as shapely_transform
+    from shapely import wkt as shapely_wkt
+except ImportError:  # pragma: no cover - only in slim demo builds
+    gpd = shapely_transform = shapely_wkt = None
 
 from apps.geo.models import ClassifiedBuilding, UploadSession
 

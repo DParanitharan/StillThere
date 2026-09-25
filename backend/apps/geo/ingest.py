@@ -3,12 +3,19 @@ Reads a GeoDataFrame and bulk-inserts every feature into the
 UploadedFeature table so they are queryable with PostGIS spatial functions.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 
-import geopandas as gpd
 from django.contrib.gis.geos import GEOSGeometry
-from shapely.ops import transform as shapely_transform
+
+# Optional at import time so the backend boots without the geo stack (demo mode).
+try:
+    import geopandas as gpd
+    from shapely.ops import transform as shapely_transform
+except ImportError:  # pragma: no cover - only in slim demo builds
+    gpd = shapely_transform = None
 
 from apps.geo.models import UploadedFeature
 

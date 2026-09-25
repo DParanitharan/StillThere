@@ -4,14 +4,22 @@ import os
 import re
 import time
 
-from google import genai
-from google.genai import types
 from django.db import connection
+
+# Optional at import time so the backend boots without the Gemini SDK; the chat
+# view returns 503 when the client is unavailable.
+try:
+    from google import genai
+    from google.genai import types
+except ImportError:  # pragma: no cover - only when SDK not installed
+    genai = types = None
 
 logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-client = genai.Client(api_key=GEMINI_API_KEY)
+# Only instantiate when a key is configured; the chat view returns 503 otherwise,
+# so the module still imports cleanly in deployments without the key set.
+client = genai.Client(api_key=GEMINI_API_KEY) if (genai and GEMINI_API_KEY) else None
 
 DB_SCHEMA = """
 You have access to two PostGIS tables in a PostgreSQL database:

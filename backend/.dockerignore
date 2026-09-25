@@ -1,0 +1,13 @@
+.venv
+venv
+.env
+.env.*
+!.env.example
+__pycache__
+**/__pycache__
+*.pyc
+staticfiles
+media
+*.sqlite3
+.git
+.pytest_cache

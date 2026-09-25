@@ -1,18 +1,32 @@
-import geopandas as gpd
+from __future__ import annotations
+
 import os
 import requests
 import math
 import numpy as np
-import torch
 import io
 import logging
 import json
 import time
-from PIL import Image, ImageDraw
-from shapely.geometry import shape
-from shapely.ops import transform
-from rasterio.transform import from_bounds
-from rasterio.features import shapes as rasterio_shapes
+
+# Heavy geospatial/ML libraries are optional at import time so the backend can
+# boot in a slim demo deployment without the torch/GDAL stack. They are only
+# needed when the live classification pipeline runs, which is disabled in the
+# public demo (see DEMO_MODE-guarded upload/extract endpoints).
+try:
+    import geopandas as gpd
+    import torch
+    from PIL import Image, ImageDraw
+    from shapely.geometry import shape
+    from shapely.ops import transform
+    from rasterio.transform import from_bounds
+    from rasterio.features import shapes as rasterio_shapes
+except ImportError as _exc:  # pragma: no cover - only in slim demo builds
+    gpd = torch = Image = ImageDraw = shape = transform = from_bounds = rasterio_shapes = None
+    logging.getLogger(__name__).warning(
+        "Geo/ML stack unavailable (%s); live classification disabled.", _exc
+    )
+
 from apps.geo.persist_results import persist_classification_results
 
 logging.basicConfig(level=logging.INFO)

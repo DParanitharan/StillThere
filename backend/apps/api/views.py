@@ -1,5 +1,7 @@
 """API view implementations for upload, overlay, analysis, and export routes."""
 
+from __future__ import annotations
+
 import logging
 import os
 import tempfile
@@ -9,8 +11,14 @@ import requests
 import zipfile
 import json
 
-import geopandas as gpd
 from pathlib import Path
+
+# Optional at import time: the live upload/extract flow needs GeoPandas, but the
+# public demo disables that path (DEMO_MODE), so the module must import without it.
+try:
+    import geopandas as gpd
+except ImportError:  # pragma: no cover - only in slim demo builds
+    gpd = None
 from django.shortcuts import get_object_or_404,render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
@@ -41,6 +49,15 @@ from .serializers import AnalysisSessionSerializer
 from apps.api.chat import chat_query
 
 logger = logging.getLogger(__name__)
+
+# Public read-only demo deployments set DEMO_MODE=1 to disable the heavy live
+# upload + SAM extraction pipeline while still serving the seeded analysis.
+DEMO_MODE = os.getenv("DEMO_MODE", "0") == "1"
+DEMO_DISABLED_MESSAGE = (
+    "Live shapefile upload is disabled in this public demo. "
+    "Explore the pre-loaded analysis session instead."
+)
+
 
 class WhoAmIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -147,6 +164,12 @@ class UploadShapefileView(APIView):
 
     def post(self, request):
         """Validate and process uploaded shapefile zip into stored GeoJSON."""
+        if DEMO_MODE:
+            return Response(
+                {"error": DEMO_DISABLED_MESSAGE},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         request_serializer = UploadRequestSerializer(data=request.data)
         if not request_serializer.is_valid():
             return Response(
@@ -312,6 +335,12 @@ class BuildingExtractionView(APIView):
     """Start building extraction in a background thread; poll /api/progress/<session_id>/ for updates."""
 
     def post(self, request):
+        if DEMO_MODE:
+            return Response(
+                {"error": DEMO_DISABLED_MESSAGE},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
         session_id = request.data.get("session_id")
         if not session_id:
             return Response(

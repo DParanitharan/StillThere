@@ -1,0 +1,31 @@
+# Backend image for the public demo on Render.
+# Ships GDAL/GEOS/PROJ system libraries for GeoDjango, but installs only the slim
+# Python requirements (no torch/SAM) so it fits small instances. Live upload/SAM
+# is disabled via DEMO_MODE; the seeded analysis is served read-only.
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DJANGO_SETTINGS_MODULE=nkbp_backend.settings \
+    GDAL_LIBRARY_PATH="" \
+    GEOS_LIBRARY_PATH=""
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gdal-bin libgdal-dev \
+    libproj-dev proj-data proj-bin \
+    libgeos-dev \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-deploy.txt .
+RUN pip install --no-cache-dir -r requirements-deploy.txt
+
+COPY . .
+
+# Collect admin/DRF static assets for WhiteNoise. DEBUG off so manifest storage runs.
+RUN DJANGO_DEBUG=0 DJANGO_SECRET_KEY=build-time python manage.py collectstatic --noinput
+
+# Render provides $PORT. Migrate on boot (idempotent), then serve with gunicorn.
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn nkbp_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers ${WEB_CONCURRENCY:-2} --timeout 120"]

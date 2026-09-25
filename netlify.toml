@@ -1,0 +1,23 @@
+# Netlify config for the Next.js frontend (public demo).
+[build]
+  base = "frontend"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# CDN-level proxy: the browser only ever talks to the Netlify origin (same-origin,
+# so no CORS), and Netlify edge-proxies /api/* to the Render backend. Unlike a
+# serverless function this has no ~6MB response cap -- the classification payload
+# is ~10MB. Method, body and query string are preserved, and the frontend's
+# trailing-slash paths pass straight through to Django.
+#
+# >>> Replace the host below with your real Render backend URL, then redeploy. <<<
+[[redirects]]
+  from = "/api/*"
+  to = "https://stillthere-backend.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
