@@ -27,5 +27,8 @@ COPY . .
 # Collect admin/DRF static assets for WhiteNoise. DEBUG off so manifest storage runs.
 RUN DJANGO_DEBUG=0 DJANGO_SECRET_KEY=build-time python manage.py collectstatic --noinput
 
-# Render provides $PORT. Migrate on boot (idempotent), then serve with gunicorn.
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn nkbp_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers ${WEB_CONCURRENCY:-2} --timeout 120"]
+# Render provides $PORT. Start the web server immediately so the port binds fast
+# (Render times out the deploy otherwise). The DB is migrated + seeded out-of-band
+# (run `manage.py migrate` locally against the DB before first deploy), so we do
+# NOT migrate on boot -- that would block port binding on the DB connection.
+CMD ["sh", "-c", "gunicorn nkbp_backend.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers ${WEB_CONCURRENCY:-2} --timeout 120"]
