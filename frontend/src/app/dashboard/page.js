@@ -6,8 +6,12 @@ import MapView from "@/app/components/map/MapView";
 import ProgressPanel from "@/app/components/progress/ProgressPanel";
 import FileUpload from "@/app/components/upload/FileUpload";
 import { extractBuildings } from "@/services/api";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./dashboard.module.css";
+
+// Pre-seeded public demo analysis (Onahama). Auto-loaded on mount so visitors see
+// a fully rendered result without the live upload flow (disabled in demo mode).
+const DEMO_SESSION_ID = "00000000-0000-0000-0000-00000000d310";
 
 export default function DashboardPage() {
   const [geoData, setGeoData] = useState(null);
@@ -22,6 +26,37 @@ export default function DashboardPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [chatGeoJson, setChatGeoJson] = useState(null);
+
+  // Auto-load the seeded demo session so the map renders on arrival. The persisted
+  // classification endpoint uses different field names than the live-pipeline
+  // GeoJSON the map expects, so map them here (classification->status, etc.).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/classification/${DEMO_SESSION_ID}/`);
+        if (!res.ok) return;
+        const fc = await res.json();
+        if (cancelled || !fc?.features) return;
+        const features = fc.features.map((f) => ({
+          ...f,
+          properties: {
+            ...f.properties,
+            status: f.properties.classification,
+            input_idx: f.properties.feature_index,
+            iou: f.properties.iou_score,
+          },
+        }));
+        setBuildingsGeoJSON({ type: "FeatureCollection", features });
+        setSessionId(DEMO_SESSION_ID);
+      } catch (err) {
+        console.error("Failed to auto-load demo session:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const summary = useMemo(() => {
     if (!buildingsGeoJSON?.features) return null;

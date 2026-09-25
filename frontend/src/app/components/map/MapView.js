@@ -54,7 +54,8 @@ export default function MapView({
   const [showSatellite, setShowSatellite] = useState(false);
 
   useEffect(() => {
-    if (!geoData && !searchPoint) return;
+    if (!geoData && !searchPoint && !(buildingsGeoData?.features?.length > 0))
+      return;
 
     const loadMap = async () => {
       const L = await import("leaflet");
@@ -82,7 +83,7 @@ export default function MapView({
       });
     };
     loadMap();
-  }, [geoData, searchPoint]);
+  }, [geoData, searchPoint, buildingsGeoData]);
 
   const getInputStyle = () => ({
     color: "#3388ff",
@@ -242,7 +243,7 @@ export default function MapView({
     return `chat-${chatOverlay.features.length}-${Date.now()}`;
   }, [chatOverlay]);
 
-  if (!geoData && !searchPoint) {
+  if (!geoData && !searchPoint && !(buildingsGeoData?.features?.length > 0)) {
     return (
       <div className={styles.placeholder}>
         <div className={styles.placeholderContent}>
@@ -283,7 +284,7 @@ export default function MapView({
     MapComponents;
   const center = searchPoint
     ? [searchPoint.lat, searchPoint.lng]
-    : getCenter(geoData);
+    : getCenter(geoData || buildingsGeoData);
   const hasClassifiedData = buildingsGeoData?.features?.length > 0;
   const hasChatOverlay = chatOverlay?.features?.length > 0;
   const inputKey = geoData ? `input-${geoData.features?.length}` : "none";
@@ -336,6 +337,10 @@ export default function MapView({
 
         {hasChatOverlay && (
           <FitBounds geojson={chatOverlay} useMap={useMap} L={L} />
+        )}
+
+        {hasClassifiedData && !hasChatOverlay && (
+          <FitBounds geojson={buildingsGeoData} useMap={useMap} L={L} />
         )}
 
         <FlyTo searchPoint={searchPoint} useMap={useMap} />
