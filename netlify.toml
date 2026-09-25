@@ -2,6 +2,9 @@
 [build]
   base = "frontend"
   command = "npm run build"
+  # Publish the Next.js build output (relative to base), not the base dir itself.
+  # The Next.js runtime plugin errors if publish == base.
+  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"
