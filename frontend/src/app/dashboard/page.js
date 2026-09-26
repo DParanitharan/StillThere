@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [chatGeoJson, setChatGeoJson] = useState(null);
+  const [demoLoading, setDemoLoading] = useState(true);
 
   // Auto-load the seeded demo session so the map renders on arrival. The persisted
   // classification endpoint uses different field names than the live-pipeline
@@ -51,6 +52,8 @@ export default function DashboardPage() {
         setSessionId(DEMO_SESSION_ID);
       } catch (err) {
         console.error("Failed to auto-load demo session:", err);
+      } finally {
+        if (!cancelled) setDemoLoading(false);
       }
     })();
     return () => {
@@ -309,6 +312,7 @@ export default function DashboardPage() {
             buildingsGeoData={filteredGeoJSON}
             searchPoint={searchPoint}
             chatOverlay={chatGeoJson}
+            loading={demoLoading && !buildingsGeoJSON}
           />
         </div>
       </div>

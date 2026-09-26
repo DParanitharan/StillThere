@@ -49,6 +49,7 @@ export default function MapView({
   buildingsGeoData,
   searchPoint,
   chatOverlay,
+  loading = false,
 }) {
   const [MapComponents, setMapComponents] = useState(null);
   const [showSatellite, setShowSatellite] = useState(false);
@@ -244,6 +245,16 @@ export default function MapView({
   }, [chatOverlay]);
 
   if (!geoData && !searchPoint && !(buildingsGeoData?.features?.length > 0)) {
+    if (loading) {
+      return (
+        <div className={styles.placeholder}>
+          <div className={styles.loadingContent}>
+            <div className={styles.spinner}></div>
+            <p>Loading analysis…</p>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className={styles.placeholder}>
         <div className={styles.placeholderContent}>
